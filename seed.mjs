@@ -198,6 +198,29 @@ const bootcamps = [
   },
 ];
 
+// ── Jobs ─────────────────────────────────────────────────────
+const jobs = [
+  { title: "A 2 minute short AI film is needed", type: "PART-TIME", tag: "AI Film", description: "Create an AI-driven cinematic ad for a binary options trading platform, emphasizing clarity and strong user engagement.", budget: "₹10,000 fixed", timeline: "3 days", skills: ["Runway","Pika","Kling AI"] },
+  { title: "Create a cinematic AI short film", type: "PART-TIME", tag: "AI Film", description: "Create an AI-driven cinematic short film with strong storytelling, clear visuals, and smooth scene transitions.", budget: "₹800/hr", timeline: "1 week", skills: ["Midjourney","Sora","DaVinci"] },
+  { title: "Build high-converting AI video ads", type: "FULL-TIME", tag: "AI Ads", description: "Create AI-driven cinematic ads focused on brand clarity, user engagement, and storytelling that improves conversions.", budget: "₹3L–5L per month", timeline: "Ongoing", skills: ["Runway","Adobe Firefly","ChatGPT"] },
+  { title: "Develop an AI-powered story concept", type: "CONTRACT", tag: "AI Story", description: "Create an AI-driven narrative with engaging characters, structured flow, and emotional depth.", budget: "₹55,000 fixed", timeline: "2 weeks", skills: ["Claude","ChatGPT","Notion AI"] },
+  { title: "Edit cinematic videos using AI tools", type: "PART-TIME", tag: "AI Editing", description: "Create an AI-driven cinematic edit with smooth transitions, proper pacing, and clean visuals.", budget: "₹10,000 fixed", timeline: "3 days", skills: ["DaVinci","Opus Clip","Descript"] },
+  { title: "Generate realistic AI voiceovers", type: "PART-TIME", tag: "AI Voice", description: "Create an AI-driven voiceover with natural tone, clear delivery, and emotional balance.", budget: "₹55,000 fixed", timeline: "2 days", skills: ["ElevenLabs","HeyGen","Murf"] },
+];
+
+// ── Resources (sample) ────────────────────────────────────────
+const resources = [
+  { type: "prompt", title: "Cinematic Lighting Prompts v2", description: "Master high-end cinematography lighting with these Midjourney prompts.", content: "A cinematic wide shot of a dimly lit jazz bar, golden hour lighting streaming through venetian blinds, film noir style, 4K --ar 16:9 --v 6", category: "Photography", isFeatured: true, allowCopy: true },
+  { type: "prompt", title: "AI Avatar Portrait Pack", description: "Hyper-realistic avatar prompts for YouTube and branding.", content: "Photorealistic portrait of a professional content creator, studio lighting, sharp focus, Sony A7 --ar 1:1 --v 6", category: "Avatar", allowCopy: true },
+  { type: "workflow", title: "Script to Short Film Pipeline", description: "End-to-end workflow from ChatGPT script to Runway video.", content: "Step 1: Write script with ChatGPT\nStep 2: Generate storyboard with Midjourney\nStep 3: Animate with Runway Gen-3\nStep 4: Add voice with ElevenLabs\nStep 5: Edit in DaVinci Resolve", category: "Filmmaking", allowCopy: true },
+  { type: "workflow", title: "AI Content Creator Daily Flow", description: "Daily content creation workflow using 5 AI tools.", content: "Morning: ChatGPT for topic ideation\nScript: Claude for scripting\nThumbnail: Midjourney\nVoice: ElevenLabs\nEdit: Opus Clip", category: "Content", allowCopy: true },
+  { type: "project", title: "AI Short Film: The Last Frame", description: "Complete student project — AI-generated short film.", content: "Full project files available. Tools used: Runway, Midjourney, ElevenLabs, DaVinci Resolve.", category: "Filmmaking" },
+  { type: "tip", title: "5 Prompt Hacks for Better AI Videos", description: "Quick tips to get cinematic results from Runway and Pika.", content: "1. Always specify camera movement\n2. Use lighting descriptors\n3. Add film stock references\n4. Specify aspect ratio early\n5. Use negative prompts liberally", category: "Productivity" },
+  { type: "deal", title: "Runway ML", description: "AI-powered cinematic video editor. Get 25 free credits.", discount: "25 FREE CREDITS", link: "https://runwayml.com", logo: "🎬", category: "Video AI", isFeatured: true },
+  { type: "deal", title: "Midjourney", description: "SEO-optimized AI image generation platform.", discount: "30% OFF", link: "https://midjourney.com", logo: "🌟", category: "Image AI" },
+  { type: "deal", title: "ElevenLabs", description: "Studio-quality AI voice cloning and synthesis.", discount: "50% OFF first month", link: "https://elevenlabs.io", logo: "🎤", category: "Voice AI" },
+];
+
 // ── Insert with duplicate guard ───────────────────────────
 async function seedCollection(collectionName, data, uniqueField = 'title') {
   const col = db.collection(collectionName);
@@ -215,6 +238,8 @@ async function seedCollection(collectionName, data, uniqueField = 'title') {
 await seedCollection('courses', courses);
 await seedCollection('workshops', workshops);
 await seedCollection('bootcamps', bootcamps);
+await seedCollection('jobs', jobs);
+await seedCollection('resources', resources);
 
 console.log('\n✅ Seed complete.');
 process.exit(0);
