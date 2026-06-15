@@ -63,11 +63,8 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Hash password before saving to DB
-userSchema.pre('save', async function (next) {
-  // ✅ IMPORTANT: If there's no password (Google user), skip hashing
-  if (!this.password || !this.isModified('password')) {
-    return next();
-  }
+userSchema.pre('save', async function () {
+  if (!this.password || !this.isModified('password')) return;
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });
