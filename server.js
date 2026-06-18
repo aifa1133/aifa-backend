@@ -20,6 +20,10 @@ import Transaction from "./models/Transaction.js";
 import Certificate from "./models/Certificate.js";
 import Job from "./models/Job.js";
 import Resource from "./models/Resource.js";
+import ServiceRequest   from "./models/ServiceRequest.js";
+import SalesConsultation from "./models/SalesConsultation.js";
+import TalentProfile    from "./models/TalentProfile.js";
+import MembershipPlan   from "./models/MembershipPlan.js";
 import { protect, adminOnly } from "./middleware/authMiddleware.js";
 import { createOrder, verifyPayment, getMyTransactions, getAllTransactions } from "./controllers/paymentController.js";
 
@@ -241,6 +245,114 @@ app.put("/api/users/me/avatar", protect, avatarUpload.single("avatar"), async (r
     const user = await User.findByIdAndUpdate(req.user._id, { profilePicture: avatarUrl }, { new: true }).select("-password");
     res.json({ avatarUrl, user });
   } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// ── SERVICE REQUESTS ─────────────────────────────────────────
+app.post("/api/service-requests", async (req, res) => {
+  try {
+    const { name, email, service } = req.body;
+    if (!name || !email || !service) return res.status(400).json({ message: "Name, email and service required" });
+    const sr = await ServiceRequest.create(req.body);
+    res.status(201).json(sr);
+  } catch (e) { res.status(400).json({ message: e.message }); }
+});
+app.get("/api/service-requests", protect, adminOnly, async (req, res) => {
+  try { res.json(await ServiceRequest.find().sort({ createdAt: -1 })); }
+  catch { res.status(500).json({ message: "Server error" }); }
+});
+app.put("/api/service-requests/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const sr = await ServiceRequest.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!sr) return res.status(404).json({ message: "Not found" });
+    res.json(sr);
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+app.delete("/api/service-requests/:id", protect, adminOnly, async (req, res) => {
+  try { await ServiceRequest.findByIdAndDelete(req.params.id); res.json({ message: "Deleted" }); }
+  catch { res.status(500).json({ message: "Server error" }); }
+});
+
+// ── SALES CONSULTATIONS ───────────────────────────────────────
+app.post("/api/consultations", async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+    const c = await SalesConsultation.create(req.body);
+    res.status(201).json(c);
+  } catch (e) { res.status(400).json({ message: e.message }); }
+});
+app.get("/api/consultations", protect, adminOnly, async (req, res) => {
+  try { res.json(await SalesConsultation.find().sort({ createdAt: -1 })); }
+  catch { res.status(500).json({ message: "Server error" }); }
+});
+app.put("/api/consultations/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const c = await SalesConsultation.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!c) return res.status(404).json({ message: "Not found" });
+    res.json(c);
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+app.delete("/api/consultations/:id", protect, adminOnly, async (req, res) => {
+  try { await SalesConsultation.findByIdAndDelete(req.params.id); res.json({ message: "Deleted" }); }
+  catch { res.status(500).json({ message: "Server error" }); }
+});
+
+// ── TALENT PROFILES ───────────────────────────────────────────
+app.get("/api/talent", async (req, res) => {
+  try {
+    const { category } = req.query;
+    const filter = { isActive: true };
+    if (category && category !== "All") filter.category = category;
+    res.json(await TalentProfile.find(filter).sort({ createdAt: -1 }));
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+app.get("/api/talent/all", protect, adminOnly, async (req, res) => {
+  try { res.json(await TalentProfile.find().sort({ createdAt: -1 })); }
+  catch { res.status(500).json({ message: "Server error" }); }
+});
+app.post("/api/talent", protect, adminOnly, async (req, res) => {
+  try { res.status(201).json(await TalentProfile.create(req.body)); }
+  catch (e) { res.status(400).json({ message: e.message }); }
+});
+app.put("/api/talent/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const t = await TalentProfile.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!t) return res.status(404).json({ message: "Not found" });
+    res.json(t);
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+app.delete("/api/talent/:id", protect, adminOnly, async (req, res) => {
+  try { await TalentProfile.findByIdAndDelete(req.params.id); res.json({ message: "Deleted" }); }
+  catch { res.status(500).json({ message: "Server error" }); }
+});
+
+// ── MEMBERSHIP PLANS ──────────────────────────────────────────
+app.get("/api/membership/plans", async (req, res) => {
+  try { res.json(await MembershipPlan.find({ isActive: true })); }
+  catch { res.status(500).json({ message: "Server error" }); }
+});
+app.post("/api/membership/plans", protect, adminOnly, async (req, res) => {
+  try { res.status(201).json(await MembershipPlan.create(req.body)); }
+  catch (e) { res.status(400).json({ message: e.message }); }
+});
+app.put("/api/membership/plans/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const p = await MembershipPlan.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!p) return res.status(404).json({ message: "Not found" });
+    res.json(p);
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+app.delete("/api/membership/plans/:id", protect, adminOnly, async (req, res) => {
+  try { await MembershipPlan.findByIdAndDelete(req.params.id); res.json({ message: "Deleted" }); }
+  catch { res.status(500).json({ message: "Server error" }); }
+});
+app.get("/api/membership/members", protect, adminOnly, async (req, res) => {
+  try {
+    const users = await User.find({ role: "student" })
+      .select("name email createdAt enrolledCourses enrolledWorkshops enrolledBootcamps")
+      .sort({ createdAt: -1 });
+    res.json(users);
+  } catch { res.status(500).json({ message: "Server error" }); }
 });
 
 const PORT = process.env.PORT || 5000;
