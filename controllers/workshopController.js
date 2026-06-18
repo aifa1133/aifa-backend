@@ -35,6 +35,7 @@ export const registerWorkshop = async (req, res) => {
 
 export const createWorkshop = async (req, res) => {
   try {
+    if (req.body.mode) req.body.mode = req.body.mode.toUpperCase();
     const workshop = await Workshop.create(req.body);
     res.status(201).json(workshop);
   } catch (e) {
@@ -44,6 +45,7 @@ export const createWorkshop = async (req, res) => {
 
 export const updateWorkshop = async (req, res) => {
   try {
+    if (req.body.mode) req.body.mode = req.body.mode.toUpperCase();
     const workshop = await Workshop.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!workshop) return res.status(404).json({ message: "Workshop not found" });
     res.json(workshop);
