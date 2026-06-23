@@ -3,8 +3,18 @@ import User from "../models/User.js";
 
 export const getCourses = async (req, res) => {
   try {
-    const courses = await Course.find({ isPublished: true }).select("-lessons");
-    res.json(courses);
+    const query = req.query.all === "true" ? {} : { isPublished: true };
+    const courses = await Course.find(query).select("-lessons");
+    /* Add enrollment count from User collection */
+    const ids = courses.map(c => c._id);
+    const counts = await User.aggregate([
+      { $unwind: "$enrolledCourses" },
+      { $match: { enrolledCourses: { $in: ids } } },
+      { $group: { _id: "$enrolledCourses", count: { $sum: 1 } } },
+    ]);
+    const countMap = {};
+    counts.forEach(c => { countMap[String(c._id)] = c.count; });
+    res.json(courses.map(c => ({ ...c.toObject(), enrollmentCount: countMap[String(c._id)] || 0 })));
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
