@@ -242,7 +242,9 @@ app.get("/api/bootcamps/:id/students", protect, adminOnly, async (req, res) => {
 // ── Jobs ─────────────────────────────────────────────────────
 app.get("/api/jobs", async (req, res) => {
   try {
-    const jobs = await Job.find({ isActive: true }).sort({ createdAt: -1 });
+    /* ?all=true used by admin to see inactive jobs too */
+    const filter = req.query.all === "true" ? {} : { isActive: true };
+    const jobs = await Job.find(filter).sort({ createdAt: -1 });
     res.json(jobs);
   } catch { res.status(500).json({ message: "Server error" }); }
 });
