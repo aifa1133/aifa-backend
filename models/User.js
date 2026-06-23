@@ -29,7 +29,7 @@ const userSchema = new mongoose.Schema({
       // Only require password if it's NOT a Google login
       return !this.isGoogleUser;
     },
-    minlength: 6,
+    minlength: 6, // frontend enforces 12; keep 6 here for Google/phone users
   },
   // ✅ ADDED: Field to track Google users
   isGoogleUser: {

@@ -15,6 +15,38 @@ async function getConfig(key) {
   } catch { return process.env[key] || ""; }
 }
 
+// In-memory OTP stores (phone & email OTPs, TTL 10 min)
+const phoneOtpStore = new Map(); // phone -> { otp, expiry }
+const emailOtpStore = new Map(); // email -> { otp, expiry }
+const resetOtpStore = new Map(); // email -> { otp, expiry }
+
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+async function sendEmail(to, subject, html) {
+  const emailUser = await getConfig("EMAIL_USER");
+  const emailPass = await getConfig("EMAIL_PASS");
+  const fromName  = await getConfig("EMAIL_FROM_NAME") || "AIFA Film Academy";
+  if (!emailUser || !emailPass || emailUser.includes("your_gmail")) return false;
+  const transporter = nodemailer.createTransport({
+    service: process.env.EMAIL_SERVICE || "gmail",
+    auth: { user: emailUser, pass: emailPass },
+  });
+  await transporter.sendMail({ from: `"${fromName}" <${emailUser}>`, to, subject, html });
+  return true;
+}
+
+async function checkTurnstile(token) {
+  const secretKey = await getConfig("TURNSTILE_SECRET_KEY");
+  if (!secretKey || secretKey.trim() === "") return true; // not configured → skip
+  if (!token) return false;
+  const body = new URLSearchParams({ secret: secretKey, response: token });
+  const r = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: body.toString(),
+  });
+  const data = await r.json();
+  return !!data.success;
+}
+
 // Helper to create JWT
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -43,8 +75,11 @@ export const register = async (req, res) => {
 
 // --- LOGIN (EMAIL/PASSWORD) ---
 export const login = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, turnstileToken } = req.body;
   try {
+    const captchaOk = await checkTurnstile(turnstileToken);
+    if (!captchaOk) return res.status(400).json({ message: 'CAPTCHA verification failed. Please try again.' });
+
     const user = await User.findOne({ email });
     if (user && (await bcrypt.compare(password, user.password))) {
       res.json({
@@ -169,5 +204,166 @@ export const resetPassword = async (req, res) => {
     res.json({ message: 'Password reset successful' });
   } catch {
     res.status(400).json({ message: 'Invalid or expired reset token' });
+  }
+};
+
+// --- VERIFY TURNSTILE ---
+export const verifyTurnstile = async (req, res) => {
+  const { token } = req.body;
+  const ok = await checkTurnstile(token);
+  if (ok) res.json({ success: true });
+  else res.status(400).json({ success: false, message: 'CAPTCHA verification failed' });
+};
+
+// --- SEND PHONE OTP ---
+export const sendPhoneOtp = async (req, res) => {
+  const { phone, turnstileToken } = req.body;
+  if (!phone) return res.status(400).json({ message: 'Phone number required' });
+
+  const captchaOk = await checkTurnstile(turnstileToken);
+  if (!captchaOk) return res.status(400).json({ message: 'CAPTCHA verification failed' });
+
+  const otp = generateOTP();
+  phoneOtpStore.set(phone, { otp, expiry: Date.now() + 10 * 60 * 1000 });
+
+  const sid   = await getConfig("TWILIO_SID");
+  const token = await getConfig("TWILIO_TOKEN");
+  const from  = await getConfig("TWILIO_PHONE");
+
+  if (sid && token && from && !sid.includes("your_")) {
+    const auth = Buffer.from(`${sid}:${token}`).toString("base64");
+    const toPhone = phone.startsWith("+") ? phone : `+91${phone}`;
+    const body = new URLSearchParams({
+      To: toPhone, From: from,
+      Body: `Your AIFA login OTP is ${otp}. Valid for 10 minutes.`
+    });
+    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: "POST",
+      headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+    if (!r.ok) return res.status(500).json({ message: "Failed to send SMS. Check Twilio credentials." });
+  } else {
+    console.log(`[DEV] Phone OTP for ${phone}: ${otp}`);
+  }
+  res.json({ message: "OTP sent" });
+};
+
+// --- VERIFY PHONE OTP ---
+export const verifyPhoneOtp = async (req, res) => {
+  const { phone, otp } = req.body;
+  if (!phone || !otp) return res.status(400).json({ message: 'Phone and OTP required' });
+
+  const record = phoneOtpStore.get(phone);
+  if (!record) return res.status(400).json({ message: 'OTP expired or not requested' });
+  if (Date.now() > record.expiry) { phoneOtpStore.delete(phone); return res.status(400).json({ message: 'OTP expired' }); }
+  if (record.otp !== otp.trim()) return res.status(400).json({ message: 'Invalid OTP' });
+  phoneOtpStore.delete(phone);
+
+  const user = await User.findOne({ phone });
+  if (!user) return res.status(404).json({ message: 'No account found with this phone number. Please sign up first.' });
+
+  res.json({ _id: user._id, name: user.name, role: user.role, token: generateToken(user._id) });
+};
+
+// --- SEND EMAIL OTP (signup verification) ---
+export const sendEmailOtp = async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: 'Email required' });
+
+  const existing = await User.findOne({ email });
+  if (existing) return res.status(400).json({ message: 'An account with this email already exists. Please log in.' });
+
+  const otp = generateOTP();
+  emailOtpStore.set(email, { otp, expiry: Date.now() + 10 * 60 * 1000 });
+
+  const sent = await sendEmail(email, 'Verify your AIFA email',
+    `<div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+      <h2 style="color:#C7E36B">Verify Your Email</h2>
+      <p>Your verification code is:</p>
+      <div style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#C7E36B;margin:16px 0">${otp}</div>
+      <p style="color:#888;font-size:12px">Valid for 10 minutes. If you didn't request this, ignore this email.</p>
+    </div>`
+  );
+
+  if (!sent) console.log(`[DEV] Email OTP for ${email}: ${otp}`);
+  res.json({ message: 'OTP sent to your email' });
+};
+
+// --- VERIFY EMAIL OTP (signup verification) ---
+export const verifyEmailOtp = async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) return res.status(400).json({ message: 'Email and OTP required' });
+
+  const record = emailOtpStore.get(email);
+  if (!record) return res.status(400).json({ message: 'OTP expired or not requested. Please resend.' });
+  if (Date.now() > record.expiry) { emailOtpStore.delete(email); return res.status(400).json({ message: 'OTP expired. Please resend.' }); }
+  if (record.otp !== otp.trim()) return res.status(400).json({ message: 'Invalid OTP' });
+
+  emailOtpStore.delete(email);
+  res.json({ message: 'Email verified' });
+};
+
+// --- FORGOT PASSWORD OTP ---
+export const forgotPasswordOtp = async (req, res) => {
+  const { email, turnstileToken } = req.body;
+  if (!email) return res.status(400).json({ message: 'Email required' });
+
+  const captchaOk = await checkTurnstile(turnstileToken);
+  if (!captchaOk) return res.status(400).json({ message: 'CAPTCHA verification failed' });
+
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ message: 'No account found with this email' });
+
+  const otp = generateOTP();
+  resetOtpStore.set(email, { otp, expiry: Date.now() + 10 * 60 * 1000 });
+
+  const sent = await sendEmail(email, 'Reset your AIFA password',
+    `<div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+      <h2 style="color:#C7E36B">Reset Your Password</h2>
+      <p>Hi ${user.name}, your password reset code is:</p>
+      <div style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#C7E36B;margin:16px 0">${otp}</div>
+      <p style="color:#888;font-size:12px">Valid for 10 minutes. If you didn't request this, ignore this email.</p>
+    </div>`
+  );
+
+  if (!sent) console.log(`[DEV] Reset OTP for ${email}: ${otp}`);
+  res.json({ message: 'OTP sent to your email' });
+};
+
+// --- VERIFY RESET OTP ---
+export const verifyResetOtp = async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) return res.status(400).json({ message: 'Email and OTP required' });
+
+  const record = resetOtpStore.get(email);
+  if (!record) return res.status(400).json({ message: 'OTP expired or not requested. Please start again.' });
+  if (Date.now() > record.expiry) { resetOtpStore.delete(email); return res.status(400).json({ message: 'OTP expired. Please start again.' }); }
+  if (record.otp !== otp.trim()) return res.status(400).json({ message: 'Invalid OTP' });
+
+  resetOtpStore.delete(email);
+
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ message: 'User not found' });
+
+  // Issue a short-lived password-reset token
+  const resetToken = jwt.sign({ id: user._id, purpose: 'password_reset' }, process.env.JWT_SECRET, { expiresIn: '15m' });
+  res.json({ message: 'OTP verified', resetToken });
+};
+
+// --- RESET PASSWORD VIA OTP ---
+export const resetPasswordOtp = async (req, res) => {
+  const { resetToken, password } = req.body;
+  if (!resetToken || !password) return res.status(400).json({ message: 'Token and password required' });
+  try {
+    const decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+    if (decoded.purpose !== 'password_reset') return res.status(400).json({ message: 'Invalid token' });
+    const user = await User.findById(decoded.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    user.password = password;
+    await user.save();
+    res.json({ message: 'Password reset successful' });
+  } catch {
+    res.status(400).json({ message: 'Invalid or expired token. Please start again.' });
   }
 };
