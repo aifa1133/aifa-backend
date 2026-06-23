@@ -47,7 +47,10 @@ export const changePassword = async (req, res) => {
 // Admin
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password");
+    const users = await User.find().select("-password")
+      .populate("enrolledCourses",    "title image")
+      .populate("enrolledWorkshops",  "title")
+      .populate("enrolledBootcamps",  "title");
     res.json(users);
   } catch (e) {
     res.status(500).json({ message: e.message });
