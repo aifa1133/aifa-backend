@@ -249,6 +249,54 @@ export const sendPhoneOtp = async (req, res) => {
   res.json({ message: "OTP sent" });
 };
 
+// --- SEND PHONE OTP (signup — no turnstile, no user required) ---
+export const sendPhoneSignupOtp = async (req, res) => {
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ message: 'Phone number required' });
+
+  const otp = generateOTP();
+  phoneOtpStore.set(phone, { otp, expiry: Date.now() + 10 * 60 * 1000 });
+
+  const sid  = await getConfig("TWILIO_SID");
+  const tok  = await getConfig("TWILIO_TOKEN");
+  const from = await getConfig("TWILIO_PHONE");
+
+  if (sid && tok && from && !sid.includes("your_")) {
+    const auth    = Buffer.from(`${sid}:${tok}`).toString("base64");
+    const toPhone = phone.startsWith("+") ? phone : `+91${phone}`;
+    const body    = new URLSearchParams({
+      To: toPhone, From: from,
+      Body: `Your AIFA verification OTP is ${otp}. Valid for 10 minutes. Do not share this code.`,
+    });
+    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: "POST",
+      headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      return res.status(500).json({ message: err.message || "Failed to send SMS. Check Twilio credentials." });
+    }
+  } else {
+    console.log(`[DEV] Phone signup OTP for ${phone}: ${otp}`);
+  }
+  res.json({ message: "OTP sent" });
+};
+
+// --- VERIFY PHONE OTP (signup — no user lookup, just validates OTP) ---
+export const verifyPhoneSignupOtp = async (req, res) => {
+  const { phone, otp } = req.body;
+  if (!phone || !otp) return res.status(400).json({ message: 'Phone and OTP required' });
+
+  const record = phoneOtpStore.get(phone);
+  if (!record) return res.status(400).json({ message: 'OTP expired or not requested' });
+  if (Date.now() > record.expiry) { phoneOtpStore.delete(phone); return res.status(400).json({ message: 'OTP expired' }); }
+  if (record.otp !== otp.trim()) return res.status(400).json({ message: 'Invalid OTP' });
+  phoneOtpStore.delete(phone);
+
+  res.json({ verified: true });
+};
+
 // --- VERIFY PHONE OTP ---
 export const verifyPhoneOtp = async (req, res) => {
   const { phone, otp } = req.body;

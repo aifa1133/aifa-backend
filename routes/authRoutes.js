@@ -3,6 +3,7 @@ import {
   register, login, googleLogin, forgotPassword, resetPassword,
   verifyTurnstile,
   sendPhoneOtp, verifyPhoneOtp,
+  sendPhoneSignupOtp, verifyPhoneSignupOtp,
   sendEmailOtp, verifyEmailOtp,
   forgotPasswordOtp, verifyResetOtp, resetPasswordOtp,
 } from "../controllers/authController.js";
@@ -18,9 +19,13 @@ router.post("/reset-password",       resetPassword);
 // Turnstile
 router.post("/verify-turnstile",     verifyTurnstile);
 
-// Phone OTP
-router.post("/send-otp",             sendPhoneOtp);
-router.post("/verify-otp",           verifyPhoneOtp);
+// Phone OTP (login by phone)
+router.post("/send-otp",                  sendPhoneOtp);
+router.post("/verify-otp",                verifyPhoneOtp);
+
+// Phone OTP (signup verification — no user required)
+router.post("/send-signup-phone-otp",     sendPhoneSignupOtp);
+router.post("/verify-signup-phone-otp",   verifyPhoneSignupOtp);
 
 // Email OTP (signup verification)
 router.post("/send-email-otp",       sendEmailOtp);
