@@ -4,6 +4,7 @@ import Course from "../models/Course.js";
 import Workshop from "../models/Workshop.js";
 import Bootcamp from "../models/Bootcamp.js";
 import User from "../models/User.js";
+import Notification from "../models/Notification.js";
 
 function razorpayConfigured() {
   const k = process.env.RAZORPAY_KEY_ID;
@@ -119,6 +120,15 @@ export const verifyPayment = async (req, res) => {
       await Bootcamp.findByIdAndUpdate(tx.itemId, { $addToSet: { enrollments: user._id } });
     }
     await user.save();
+
+    // Send enrollment confirmation notification to student
+    const itemLabel = tx.itemType === "bootcamp" ? "Bootcamp" : tx.itemType === "course" ? "Course" : "Workshop";
+    await Notification.create({
+      recipients: [user._id],
+      title: `🎉 Enrollment Confirmed — ${tx.itemTitle}`,
+      body: `Your payment of ₹${tx.amount} was successful. You are now enrolled in "${tx.itemTitle}". Head to your dashboard to get started!`,
+      type: "enrollment",
+    }).catch(() => {});
 
     res.json({ success: true, message: "Payment verified and enrollment confirmed", transaction: tx });
   } catch (e) {
