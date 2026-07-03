@@ -103,7 +103,7 @@ export const verifyPayment = async (req, res) => {
     }
 
     const tx = await Transaction.findByIdAndUpdate(
-      txId, { paymentId, signature, status: "paid" }, { new: true }
+      txId, { paymentId, signature, status: "paid" }, { returnDocument: "after" }
     );
     if (!tx) return res.status(404).json({ message: "Transaction not found" });
 
@@ -120,7 +120,7 @@ export const verifyPayment = async (req, res) => {
     }
     await user.save();
 
-    res.json({ message: "Payment verified and enrollment confirmed", transaction: tx });
+    res.json({ success: true, message: "Payment verified and enrollment confirmed", transaction: tx });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
