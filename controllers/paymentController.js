@@ -74,15 +74,29 @@ export const verifyPayment = async (req, res) => {
     razorpay_signature:  signature,
     txId,
   } = req.body;
+
+  console.log("[PAY-VERIFY] incoming fields:", {
+    orderId:   orderId   || "MISSING",
+    paymentId: paymentId || "MISSING",
+    signature: signature ? signature.slice(0, 10) + "…" : "MISSING",
+    txId:      txId      || "MISSING",
+  });
+
   try {
     const razorpay = await getRazorpay();
 
     if (razorpay) {
+      const keySecretPresent = !!(process.env.RAZORPAY_KEY_SECRET);
       const expected = crypto
         .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
         .update(`${orderId}|${paymentId}`)
         .digest("hex");
+
+      console.log("[PAY-VERIFY] key_secret present:", keySecretPresent);
+      console.log("[PAY-VERIFY] signature match:", expected === signature);
+
       if (expected !== signature) {
+        console.log("[PAY-VERIFY] MISMATCH — expected:", expected.slice(0, 10) + "…", "got:", (signature || "").slice(0, 10) + "…");
         await Transaction.findByIdAndUpdate(txId, { status: "failed" });
         return res.status(400).json({ message: "Payment verification failed" });
       }
