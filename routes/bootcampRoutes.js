@@ -8,11 +8,52 @@ import Bootcamp from "../models/Bootcamp.js";
 import BootcampSession from "../models/BootcampSession.js";
 import BootcampProject from "../models/BootcampProject.js";
 import BootcampAnnouncement from "../models/BootcampAnnouncement.js";
+import BootcampResource from "../models/BootcampResource.js";
+import User from "../models/User.js";
 
 const router = express.Router();
 
 router.get("/", getBootcamps);
 router.post("/:id/enroll", protect, enrollBootcamp);
+
+// ── Students ──────────────────────────────────────────────────
+router.get("/:id/students", protect, adminOnly, async (req, res) => {
+  try {
+    const bootcamp = await Bootcamp.findById(req.params.id).populate("enrollments", "name email phone mobile createdAt");
+    if (!bootcamp) return res.status(404).json({ message: "Not found" });
+    const students = bootcamp.enrollments.map(u => ({
+      _id: u._id,
+      name: u.name,
+      email: u.email,
+      mobile: u.phone || u.mobile || "—",
+      joinDate: new Date(u.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+      status: "ACTIVE",
+    }));
+    res.json(students);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+router.post("/:id/enroll-by-email", protect, adminOnly, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email is required." });
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    if (!user) return res.status(404).json({ message: "No AIFA account found with that email address." });
+    const bootcamp = await Bootcamp.findById(req.params.id);
+    if (!bootcamp) return res.status(404).json({ message: "Bootcamp not found." });
+    if (bootcamp.enrollments.map(String).includes(String(user._id))) {
+      return res.status(400).json({ message: "This student is already enrolled in this bootcamp." });
+    }
+    bootcamp.enrollments.push(user._id);
+    await bootcamp.save();
+    if (!user.enrolledBootcamps) user.enrolledBootcamps = [];
+    if (!user.enrolledBootcamps.map(String).includes(String(bootcamp._id))) {
+      user.enrolledBootcamps.push(bootcamp._id);
+      await user.save();
+    }
+    res.json({ message: `${user.name} has been enrolled successfully.` });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
 
 // Admin routes
 router.post("/", protect, adminOnly, createBootcamp);
@@ -119,6 +160,36 @@ router.put("/:id/announcements/:aid", protect, adminOnly, async (req, res) => {
 router.delete("/:id/announcements/:aid", protect, adminOnly, async (req, res) => {
   try {
     await BootcampAnnouncement.findByIdAndDelete(req.params.aid);
+    res.json({ message: "Deleted" });
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+// ── Resources ─────────────────────────────────────────────────
+router.get("/:id/resources", protect, adminOnly, async (req, res) => {
+  try {
+    const resources = await BootcampResource.find({ bootcamp: req.params.id }).sort({ createdAt: -1 });
+    res.json(resources);
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+router.post("/:id/resources", protect, adminOnly, async (req, res) => {
+  try {
+    const resource = await BootcampResource.create({ bootcamp: req.params.id, ...req.body });
+    res.status(201).json(resource);
+  } catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+router.put("/:id/resources/:rid", protect, adminOnly, async (req, res) => {
+  try {
+    const resource = await BootcampResource.findByIdAndUpdate(req.params.rid, req.body, { new: true });
+    if (!resource) return res.status(404).json({ message: "Not found" });
+    res.json(resource);
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+router.delete("/:id/resources/:rid", protect, adminOnly, async (req, res) => {
+  try {
+    await BootcampResource.findByIdAndDelete(req.params.rid);
     res.json({ message: "Deleted" });
   } catch { res.status(500).json({ message: "Server error" }); }
 });
