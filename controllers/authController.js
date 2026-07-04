@@ -22,6 +22,12 @@ const resetOtpStore = new Map(); // email -> { otp, expiry }
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
+const normalizeEmail = (email) => {
+  if (!email) return email;
+  const [local, domain] = email.toLowerCase().trim().split("@");
+  return `${local.replace(/\+.*$/, "")}@${domain}`;
+};
+
 async function sendEmail(to, subject, html) {
   const emailUser = await getConfig("EMAIL_USER");
   const emailPass = await getConfig("EMAIL_PASS");
@@ -54,8 +60,10 @@ const generateToken = (id) => {
 
 // --- REGISTER ---
 export const register = async (req, res) => {
-  const { name, email, phone, password } = req.body;
+  const { name, phone, password } = req.body;
+  const email = normalizeEmail(req.body.email);
   try {
+    if (password && /\s/.test(password)) return res.status(400).json({ message: 'Password cannot contain spaces.' });
     const userExists = await User.findOne({ email });
     if (userExists) return res.status(400).json({ message: 'User already exists' });
 
@@ -75,7 +83,8 @@ export const register = async (req, res) => {
 
 // --- LOGIN (EMAIL/PASSWORD) ---
 export const login = async (req, res) => {
-  const { email, password, turnstileToken } = req.body;
+  const { password, turnstileToken } = req.body;
+  const email = normalizeEmail(req.body.email);
   try {
     const captchaOk = await checkTurnstile(turnstileToken);
     if (!captchaOk) return res.status(400).json({ message: 'CAPTCHA verification failed. Please try again.' });
@@ -149,7 +158,7 @@ export const googleLogin = async (req, res) => {
 };
 // --- FORGOT PASSWORD ---
 export const forgotPassword = async (req, res) => {
-  const { email } = req.body;
+  const email = normalizeEmail(req.body.email);
   try {
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -316,7 +325,7 @@ export const verifyPhoneOtp = async (req, res) => {
 
 // --- SEND EMAIL OTP (signup verification) ---
 export const sendEmailOtp = async (req, res) => {
-  const { email } = req.body;
+  const email = normalizeEmail(req.body.email);
   if (!email) return res.status(400).json({ message: 'Email required' });
 
   const existing = await User.findOne({ email });
@@ -340,7 +349,8 @@ export const sendEmailOtp = async (req, res) => {
 
 // --- VERIFY EMAIL OTP (signup verification) ---
 export const verifyEmailOtp = async (req, res) => {
-  const { email, otp } = req.body;
+  const { otp } = req.body;
+  const email = normalizeEmail(req.body.email);
   if (!email || !otp) return res.status(400).json({ message: 'Email and OTP required' });
 
   const record = emailOtpStore.get(email);
@@ -354,7 +364,8 @@ export const verifyEmailOtp = async (req, res) => {
 
 // --- FORGOT PASSWORD OTP ---
 export const forgotPasswordOtp = async (req, res) => {
-  const { email, turnstileToken } = req.body;
+  const { turnstileToken } = req.body;
+  const email = normalizeEmail(req.body.email);
   if (!email) return res.status(400).json({ message: 'Email required' });
 
   const captchaOk = await checkTurnstile(turnstileToken);
@@ -381,7 +392,8 @@ export const forgotPasswordOtp = async (req, res) => {
 
 // --- VERIFY RESET OTP ---
 export const verifyResetOtp = async (req, res) => {
-  const { email, otp } = req.body;
+  const { otp } = req.body;
+  const email = normalizeEmail(req.body.email);
   if (!email || !otp) return res.status(400).json({ message: 'Email and OTP required' });
 
   const record = resetOtpStore.get(email);
