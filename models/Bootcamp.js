@@ -24,6 +24,7 @@ const bootcampSchema = new mongoose.Schema({
   nextSessionAt:   { type: Date },
   batchLabel:      { type: String, default: "" },
   enrolledCount:   { type: Number, default: 0 },
+  studentMeta:     [{ userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, status: { type: String, default: "ACTIVE" }, notes: { type: String, default: "" } }],
 }, { timestamps: true });
 
 export default mongoose.model("Bootcamp", bootcampSchema);

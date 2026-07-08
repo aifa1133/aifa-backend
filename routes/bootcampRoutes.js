@@ -21,15 +21,38 @@ router.get("/:id/students", protect, adminOnly, async (req, res) => {
   try {
     const bootcamp = await Bootcamp.findById(req.params.id).populate("enrollments", "name email phone mobile createdAt");
     if (!bootcamp) return res.status(404).json({ message: "Not found" });
-    const students = bootcamp.enrollments.map(u => ({
-      _id: u._id,
-      name: u.name,
-      email: u.email,
-      mobile: u.phone || u.mobile || "—",
-      joinDate: new Date(u.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
-      status: "ACTIVE",
-    }));
+    const metaMap = {};
+    (bootcamp.studentMeta || []).forEach(m => { metaMap[String(m.userId)] = m; });
+    const students = bootcamp.enrollments.map(u => {
+      const meta = metaMap[String(u._id)] || {};
+      return {
+        _id: u._id,
+        name: u.name,
+        email: u.email,
+        mobile: u.phone || u.mobile || "—",
+        joinDate: new Date(u.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+        status: meta.status || "ACTIVE",
+        notes: meta.notes || "",
+      };
+    });
     res.json(students);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+router.put("/:id/students/:userId", protect, adminOnly, async (req, res) => {
+  try {
+    const { status, notes } = req.body;
+    const bootcamp = await Bootcamp.findById(req.params.id);
+    if (!bootcamp) return res.status(404).json({ message: "Not found" });
+    const existing = bootcamp.studentMeta.find(m => String(m.userId) === req.params.userId);
+    if (existing) {
+      if (status !== undefined) existing.status = status;
+      if (notes !== undefined) existing.notes = notes;
+    } else {
+      bootcamp.studentMeta.push({ userId: req.params.userId, status: status || "ACTIVE", notes: notes || "" });
+    }
+    await bootcamp.save();
+    res.json({ success: true });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
