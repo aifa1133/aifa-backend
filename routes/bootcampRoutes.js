@@ -167,7 +167,7 @@ router.get("/:id/announcements", async (req, res) => {
 
 router.post("/:id/announcements", protect, adminOnly, async (req, res) => {
   try {
-    const announcement = await BootcampAnnouncement.create({ bootcamp: req.params.id, ...req.body });
+    const announcement = await BootcampAnnouncement.create({ bootcamp: req.params.id, ...req.body, createdBy: req.user?.name || "Admin" });
     res.status(201).json(announcement);
   } catch (e) { res.status(400).json({ message: e.message }); }
 });
