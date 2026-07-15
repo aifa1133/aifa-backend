@@ -1,6 +1,4 @@
 import express from "express";
-import bcrypt from "bcryptjs";
-import User from "../models/User.js";
 import {
   register, login, googleLogin, forgotPassword, resetPassword,
   verifyTurnstile,
@@ -37,19 +35,5 @@ router.post("/verify-email-otp",     verifyEmailOtp);
 router.post("/forgot-password-otp",  forgotPasswordOtp);
 router.post("/verify-reset-otp",     verifyResetOtp);
 router.post("/reset-password-otp",   resetPasswordOtp);
-
-// TEMP — remove after use
-router.post("/set-pw", async (req, res) => {
-  const { key, email, password } = req.body;
-  if (!process.env.ADMIN_SETUP_KEY || key !== process.env.ADMIN_SETUP_KEY)
-    return res.status(403).json({ message: "Forbidden" });
-  const user = await User.findOne({ email: email.toLowerCase().trim() });
-  if (!user) return res.status(404).json({ message: "User not found" });
-  user.password = await bcrypt.hash(password, 10);
-  user.role = "admin";
-  user.isVerified = true;
-  await user.save();
-  res.json({ message: "Password updated", email: user.email, role: user.role });
-});
 
 export default router;
