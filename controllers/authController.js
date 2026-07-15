@@ -427,3 +427,23 @@ export const resetPasswordOtp = async (req, res) => {
     res.status(400).json({ message: 'Invalid or expired token. Please start again.' });
   }
 };
+
+export const createAdmin = async (req, res) => {
+  const { secretKey, email, password, name } = req.body;
+  if (!process.env.ADMIN_SETUP_KEY || secretKey !== process.env.ADMIN_SETUP_KEY) return res.status(403).json({ message: "Forbidden" });
+  if (!email || !password || !name) return res.status(400).json({ message: "email, password, name required" });
+  try {
+    const existing = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existing) {
+      existing.role = "admin";
+      existing.password = await bcrypt.hash(password, 10);
+      await existing.save();
+      return res.json({ message: "Existing user promoted to admin and password updated", email: existing.email });
+    }
+    const hashed = await bcrypt.hash(password, 10);
+    const user = await User.create({ name, email: email.toLowerCase().trim(), password: hashed, role: "admin", isVerified: true });
+    res.status(201).json({ message: "Admin created", email: user.email });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
