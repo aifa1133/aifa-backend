@@ -82,6 +82,10 @@ router.post("/:id/enroll-by-email", protect, adminOnly, async (req, res) => {
 router.post("/", protect, adminOnly, createBootcamp);
 router.put("/:id", protect, adminOnly, async (req, res) => {
   try {
+    const { startDate, endDate } = req.body;
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+      return res.status(400).json({ message: "End date cannot be earlier than start date." });
+    }
     const bootcamp = await Bootcamp.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!bootcamp) return res.status(404).json({ message: "Not found" });
     res.json(bootcamp);
@@ -89,8 +93,20 @@ router.put("/:id", protect, adminOnly, async (req, res) => {
 });
 router.delete("/:id", protect, adminOnly, deleteBootcamp);
 
+// ── Enrollment guard (enrolled student OR admin) ──────────────
+async function enrolledOrAdmin(req, res, next) {
+  try {
+    if (req.user?.role === "admin") return next();
+    const bc = await Bootcamp.findById(req.params.id).select("enrollments");
+    if (!bc) return res.status(404).json({ message: "Bootcamp not found" });
+    const isEnrolled = bc.enrollments.some(id => String(id) === String(req.user._id));
+    if (!isEnrolled) return res.status(403).json({ message: "Enrollment required" });
+    next();
+  } catch { res.status(500).json({ message: "Server error" }); }
+}
+
 // ── Sessions ─────────────────────────────────────────────────
-router.get("/:id/sessions", async (req, res) => {
+router.get("/:id/sessions", protect, enrolledOrAdmin, async (req, res) => {
   try {
     const sessions = await BootcampSession.find({ bootcamp: req.params.id }).sort({ no: 1 });
     res.json(sessions);
@@ -120,7 +136,7 @@ router.delete("/:id/sessions/:sid", protect, adminOnly, async (req, res) => {
 });
 
 // ── Projects ──────────────────────────────────────────────────
-router.get("/:id/projects", async (req, res) => {
+router.get("/:id/projects", protect, enrolledOrAdmin, async (req, res) => {
   try {
     const projects = await BootcampProject.find({ bootcamp: req.params.id });
     res.json(projects);
@@ -158,7 +174,7 @@ router.get("/:id/announcements/all", protect, adminOnly, async (req, res) => {
   } catch { res.status(500).json({ message: "Server error" }); }
 });
 
-router.get("/:id/announcements", async (req, res) => {
+router.get("/:id/announcements", protect, enrolledOrAdmin, async (req, res) => {
   try {
     const announcements = await BootcampAnnouncement.find({ bootcamp: req.params.id, status: "PUBLISHED" }).sort({ createdAt: -1 });
     res.json(announcements);
