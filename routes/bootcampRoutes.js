@@ -14,6 +14,12 @@ import User from "../models/User.js";
 const router = express.Router();
 
 router.get("/", getBootcamps);
+router.get("/all", protect, adminOnly, async (req, res) => {
+  try {
+    const bootcamps = await Bootcamp.find().sort({ createdAt: -1 });
+    res.json(bootcamps);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
 router.post("/:id/enroll", protect, enrollBootcamp);
 
 // ── Students ──────────────────────────────────────────────────
@@ -85,6 +91,10 @@ router.put("/:id", protect, adminOnly, async (req, res) => {
     const { startDate, endDate } = req.body;
     if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
       return res.status(400).json({ message: "End date cannot be earlier than start date." });
+    }
+    // Only one bootcamp can be active at a time
+    if (req.body.isPublished === true) {
+      await Bootcamp.updateMany({ _id: { $ne: req.params.id } }, { isPublished: false });
     }
     const bootcamp = await Bootcamp.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!bootcamp) return res.status(404).json({ message: "Not found" });
