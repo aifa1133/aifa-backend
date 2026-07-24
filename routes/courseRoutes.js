@@ -4,13 +4,13 @@ import {
   createCourse, updateCourse, deleteCourse,
   updateProgress, addLesson, updateLesson, deleteLesson,
 } from "../controllers/courseController.js";
-import { protect, adminOnly } from "../middleware/authMiddleware.js";
+import { protect, adminOnly, optionalProtect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 router.get("/", getCourses);
 router.get("/enrolled", protect, getEnrolledCourses);
-router.get("/:id", protect, getCourseById);
+router.get("/:id", optionalProtect, getCourseById);
 router.post("/:id/enroll", protect, enrollCourse);
 router.put("/:id/progress", protect, updateProgress);
 
