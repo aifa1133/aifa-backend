@@ -18,7 +18,7 @@ export const registerWorkshop = async (req, res) => {
     if (workshop.registrations.length >= workshop.seats) {
       return res.status(400).json({ message: "Workshop is full" });
     }
-    if (workshop.registrations.includes(req.user._id)) {
+    if (workshop.registrations.some(id => id.toString() === req.user._id.toString())) {
       return res.status(400).json({ message: "Already registered" });
     }
     workshop.registrations.push(req.user._id);
