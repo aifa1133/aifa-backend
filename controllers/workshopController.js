@@ -3,7 +3,8 @@ import User from "../models/User.js";
 
 export const getWorkshops = async (req, res) => {
   try {
-    const workshops = await Workshop.find({ isPublished: true });
+    const filter = req.query.all === "true" ? {} : { isPublished: true };
+    const workshops = await Workshop.find(filter).sort({ createdAt: -1 });
     res.json(workshops);
   } catch (e) {
     res.status(500).json({ message: e.message });
