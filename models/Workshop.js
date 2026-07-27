@@ -12,9 +12,14 @@ const workshopSchema = new mongoose.Schema({
   seats: { type: Number, default: 50 },
   registrations: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   isPublished: { type: Boolean, default: false },
-  ctaText: { type: String, default: "Reserve Spot" },
-  ctaType: { type: String, enum: ["EXTERNAL", "INTERNAL"], default: "INTERNAL" },
-  ctaUrl:  { type: String, default: "" },
+  ctaText:     { type: String, default: "Reserve Spot" },
+  ctaType:     { type: String, enum: ["EXTERNAL", "INTERNAL"], default: "INTERNAL" },
+  ctaUrl:      { type: String, default: "" },
+  sessionCode: { type: String, default: "" },
+  trainer:     { type: String, default: "" },
+  zoomLink:    { type: String, default: "" },
+  endTime:     { type: String, default: "" },
+  isCancelled: { type: Boolean, default: false },
 }, { timestamps: true });
 
 export default mongoose.model("Workshop", workshopSchema);

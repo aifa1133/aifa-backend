@@ -1,6 +1,6 @@
 import express from "express";
 import {
-  getWorkshops, registerWorkshop,
+  getWorkshops, getWorkshopById, registerWorkshop,
   createWorkshop, updateWorkshop, deleteWorkshop,
 } from "../controllers/workshopController.js";
 import { protect, adminOnly } from "../middleware/authMiddleware.js";
@@ -8,6 +8,7 @@ import { protect, adminOnly } from "../middleware/authMiddleware.js";
 const router = express.Router();
 
 router.get("/", getWorkshops);
+router.get("/:id", protect, adminOnly, getWorkshopById);
 router.post("/:id/register", protect, registerWorkshop);
 
 // Admin routes

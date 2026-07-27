@@ -34,6 +34,17 @@ export const registerWorkshop = async (req, res) => {
   }
 };
 
+export const getWorkshopById = async (req, res) => {
+  try {
+    const workshop = await Workshop.findById(req.params.id)
+      .populate("registrations", "name email phone createdAt");
+    if (!workshop) return res.status(404).json({ message: "Workshop not found" });
+    res.json(workshop);
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
 export const createWorkshop = async (req, res) => {
   try {
     if (req.body.mode) req.body.mode = req.body.mode.toUpperCase();
