@@ -235,9 +235,9 @@ export const sendPhoneOtp = async (req, res) => {
   const otp = generateOTP();
   phoneOtpStore.set(phone, { otp, expiry: Date.now() + 10 * 60 * 1000 });
 
-  const sid   = await getConfig("TWILIO_SID");
-  const token = await getConfig("TWILIO_TOKEN");
-  const from  = await getConfig("TWILIO_PHONE");
+  const sid   = (await getConfig("TWILIO_SID"))   || process.env.ACCOUNT_SID   || process.env.TWILIO_ACCOUNT_SID   || "";
+  const token = (await getConfig("TWILIO_TOKEN")) || process.env.AUTH_TOKEN    || process.env.TWILIO_AUTH_TOKEN    || "";
+  const from  = (await getConfig("TWILIO_PHONE")) || process.env.PHONE_NUMBER  || process.env.TWILIO_PHONE_NUMBER  || "";
 
   if (sid && token && from && !sid.includes("your_")) {
     const auth = Buffer.from(`${sid}:${token}`).toString("base64");
@@ -266,9 +266,9 @@ export const sendPhoneSignupOtp = async (req, res) => {
   const otp = generateOTP();
   phoneOtpStore.set(phone, { otp, expiry: Date.now() + 10 * 60 * 1000 });
 
-  const sid  = await getConfig("TWILIO_SID");
-  const tok  = await getConfig("TWILIO_TOKEN");
-  const from = await getConfig("TWILIO_PHONE");
+  const sid  = (await getConfig("TWILIO_SID"))   || process.env.ACCOUNT_SID   || process.env.TWILIO_ACCOUNT_SID   || "";
+  const tok  = (await getConfig("TWILIO_TOKEN")) || process.env.AUTH_TOKEN    || process.env.TWILIO_AUTH_TOKEN    || "";
+  const from = (await getConfig("TWILIO_PHONE")) || process.env.PHONE_NUMBER  || process.env.TWILIO_PHONE_NUMBER  || "";
 
   if (sid && tok && from && !sid.includes("your_")) {
     const auth    = Buffer.from(`${sid}:${tok}`).toString("base64");
@@ -425,25 +425,5 @@ export const resetPasswordOtp = async (req, res) => {
     res.json({ message: 'Password reset successful' });
   } catch {
     res.status(400).json({ message: 'Invalid or expired token. Please start again.' });
-  }
-};
-
-export const createAdmin = async (req, res) => {
-  const { secretKey, email, password, name } = req.body;
-  if (!process.env.ADMIN_SETUP_KEY || secretKey !== process.env.ADMIN_SETUP_KEY) return res.status(403).json({ message: "Forbidden" });
-  if (!email || !password || !name) return res.status(400).json({ message: "email, password, name required" });
-  try {
-    const existing = await User.findOne({ email: email.toLowerCase().trim() });
-    if (existing) {
-      existing.role = "admin";
-      existing.password = await bcrypt.hash(password, 10);
-      await existing.save();
-      return res.json({ message: "Existing user promoted to admin and password updated", email: existing.email });
-    }
-    const hashed = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email: email.toLowerCase().trim(), password: hashed, role: "admin", isVerified: true });
-    res.status(201).json({ message: "Admin created", email: user.email });
-  } catch (e) {
-    res.status(500).json({ message: e.message });
   }
 };

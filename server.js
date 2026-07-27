@@ -63,6 +63,22 @@ const avatarUpload = multer({ storage: avatarStorage, limits: { fileSize: 5 * 10
   else cb(new Error("Only image files allowed"));
 }});
 
+// Multer — generic image upload (workshops, courses, etc.)
+const imageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, "uploads", "images");
+    import("fs").then(({ default: fs }) => { fs.mkdirSync(dir, { recursive: true }); cb(null, dir); });
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
+    cb(null, `img-${Date.now()}-${Math.random().toString(36).slice(2,7)}${ext}`);
+  },
+});
+const imageUpload = multer({ storage: imageStorage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: (req, file, cb) => {
+  if (file.mimetype.startsWith("image/")) cb(null, true);
+  else cb(new Error("Only image files allowed"));
+}});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/workshops", workshopRoutes);
@@ -298,6 +314,14 @@ app.delete("/api/resources/:id", protect, adminOnly, async (req, res) => {
     await Resource.findByIdAndDelete(req.params.id);
     res.json({ message: "Deleted" });
   } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+// ── Generic image upload ──────────────────────────────────────
+app.post("/api/uploads/image", protect, adminOnly, imageUpload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    res.json({ url: `/api/uploads/images/${req.file.filename}` });
+  } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
 // ── Avatar upload ─────────────────────────────────────────────

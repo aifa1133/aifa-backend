@@ -1,6 +1,6 @@
 import express from "express";
 import {
-  getMyProfile, updateProfile, changePassword,
+  getMyProfile, updateProfile, changePassword, setInitialPassword,
   getAllUsers, updateUserRole, deleteUser,
   updateNotificationPrefs, getStudentStats,
 } from "../controllers/userController.js";
@@ -11,6 +11,7 @@ const router = express.Router();
 router.get("/me", protect, getMyProfile);
 router.put("/me", protect, updateProfile);
 router.put("/me/password", protect, changePassword);
+router.post("/set-password", protect, setInitialPassword);
 router.put("/me/notifications", protect, updateNotificationPrefs);
 router.get("/me/stats", protect, getStudentStats);
 

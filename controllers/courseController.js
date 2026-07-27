@@ -32,9 +32,9 @@ export const getCourseById = async (req, res) => {
     );
     if (!isEnrolled && user?.role !== "admin") {
       const { lessons, ...rest } = course.toObject();
-      return res.json({ ...rest, lessons: [] });
+      return res.json({ ...rest, lessons: [], isEnrolled: false });
     }
-    res.json(course);
+    res.json({ ...course.toObject(), isEnrolled: true });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
@@ -46,7 +46,7 @@ export const enrollCourse = async (req, res) => {
     if (!course) return res.status(404).json({ message: "Course not found" });
 
     const user = await User.findById(req.user._id);
-    if (user.enrolledCourses.includes(course._id)) {
+    if (user.enrolledCourses.some(id => id.toString() === course._id.toString())) {
       return res.status(400).json({ message: "Already enrolled" });
     }
     user.enrolledCourses.push(course._id);
@@ -155,11 +155,11 @@ export const deleteLesson = async (req, res) => {
 export const getEnrolledCourses = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
-      .populate("enrolledCourses", "title image duration price level category instructor")
+      .populate("enrolledCourses", "title image duration price level category instructor description")
       .select("enrolledCourses courseProgress");
     const courses = (user.enrolledCourses || []).map(c => {
       const prog = user.courseProgress?.find(p => p.course?.toString() === c._id.toString());
-      return { ...c.toObject(), percentComplete: prog?.percentComplete || 0, lastAccessedAt: prog?.lastAccessedAt };
+      return { ...c.toObject(), percentComplete: prog?.percentComplete || 0, lastAccessedAt: prog?.lastAccessedAt, completedLessons: prog?.completedLessons || [] };
     });
     res.json(courses);
   } catch (e) {

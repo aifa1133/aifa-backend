@@ -29,6 +29,21 @@ export const updateProfile = async (req, res) => {
   }
 };
 
+export const setInitialPassword = async (req, res) => {
+  const { password } = req.body;
+  if (!password || password.length < 8) return res.status(400).json({ message: "Password must be at least 8 characters." });
+  if (/\s/.test(password)) return res.status(400).json({ message: "Password cannot contain spaces." });
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    user.password = password;
+    await user.save();
+    res.json({ message: "Password set successfully" });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
 export const changePassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   try {
