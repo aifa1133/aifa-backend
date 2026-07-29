@@ -95,6 +95,8 @@ export const login = async (req, res) => {
         _id: user._id,
         name: user.name,
         role: user.role,
+        profilePicture: user.profilePicture || "",
+        emailVerified: !!user.emailVerified,
         token: generateToken(user._id),
       });
     } else {
@@ -131,9 +133,12 @@ export const googleLogin = async (req, res) => {
         email,
         profilePicture: picture,
         isGoogleUser: true,
-        // Create a random password since it's required in some schemas
-        password: await bcrypt.hash(Math.random().toString(36), 10) 
+        emailVerified: true, // Google already verified the email
+        password: await bcrypt.hash(Math.random().toString(36), 10)
       });
+    } else if (!user.emailVerified) {
+      user.emailVerified = true;
+      await user.save();
     }
 
     // 3. Generate YOUR AIFA JWT
@@ -148,6 +153,8 @@ export const googleLogin = async (req, res) => {
       _id: user._id,
       name: user.name,
       role: user.role,
+      profilePicture: user.profilePicture || "",
+      emailVerified: true,
       message: "Login Successful"
     });
 
@@ -409,6 +416,58 @@ export const verifyResetOtp = async (req, res) => {
   // Issue a short-lived password-reset token
   const resetToken = jwt.sign({ id: user._id, purpose: 'password_reset' }, process.env.JWT_SECRET, { expiresIn: '15m' });
   res.json({ message: 'OTP verified', resetToken });
+};
+
+// --- GUEST CHECKOUT ---
+// Creates or finds a user by email with status "unverified" (no password yet)
+// Returns a JWT so they can pay immediately without signing up
+export const guestCheckout = async (req, res) => {
+  try {
+    const { name, email, phone } = req.body;
+    if (!name || !email) return res.status(400).json({ message: "Name and email are required" });
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // Create guest user — no password yet
+      user = await User.create({
+        name,
+        email,
+        phone: phone || "",
+        isGoogleUser: true, // skip password requirement in schema
+        role: "student",
+      });
+    } else if (user.password) {
+      // Real registered account — must log in
+      return res.status(409).json({
+        code: "ACCOUNT_EXISTS",
+        message: "An account with this email already exists. Please log in to continue.",
+      });
+    } else if (user.isGoogleUser && user.googleId) {
+      // Real Google OAuth account — must log in with Google
+      return res.status(409).json({
+        code: "GOOGLE_ACCOUNT",
+        message: "This email is linked to a Google account. Please sign in with Google.",
+      });
+    } else {
+      // Existing guest account — update details and proceed
+      if (name) user.name = name;
+      if (phone) user.phone = phone;
+      await user.save();
+    }
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      profilePicture: user.profilePicture || "",
+      isNewUser: !user.password,
+      token: generateToken(user._id),
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Guest checkout failed" });
+  }
 };
 
 // --- RESET PASSWORD VIA OTP ---

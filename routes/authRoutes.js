@@ -6,10 +6,12 @@ import {
   sendPhoneSignupOtp, verifyPhoneSignupOtp,
   sendEmailOtp, verifyEmailOtp,
   forgotPasswordOtp, verifyResetOtp, resetPasswordOtp,
+  guestCheckout,
 } from "../controllers/authController.js";
 
 const router = express.Router();
 
+router.post("/guest-checkout",       guestCheckout);
 router.post("/signup",               register);
 router.post("/login",                login);
 router.post("/google",               googleLogin);
