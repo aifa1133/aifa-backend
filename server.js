@@ -12,6 +12,8 @@ import courseRoutes from "./routes/courseRoutes.js";
 import workshopRoutes from "./routes/workshopRoutes.js";
 import bootcampRoutes from "./routes/bootcampRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import influencerRoutes from "./routes/influencerRoutes.js";
+import adminInfluencerRoutes from "./routes/adminInfluencerRoutes.js";
 import User from "./models/User.js";
 import Course from "./models/Course.js";
 import Workshop from "./models/Workshop.js";
@@ -692,6 +694,10 @@ app.delete("/api/community/events/:id", protect, adminOnly, async (req, res) => 
     res.json({ message: "Deleted" });
   } catch { res.status(500).json({ message: "Server error" }); }
 });
+
+// ── Influencer module ────────────────────────────────────────
+app.use("/api/influencer", influencerRoutes);
+app.use("/api/admin", protect, adminOnly, adminInfluencerRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
