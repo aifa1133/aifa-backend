@@ -1,9 +1,8 @@
 import User from "../models/User.js";
+import Otp from "../models/Otp.js";
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
 import PlatformConfig from "../models/PlatformConfig.js";
-
-const emailVerifyOtpStore = new Map(); // userId -> { otp, expiry }
 
 async function getConfig(key) {
   try {
@@ -32,7 +31,11 @@ export const sendVerifyEmailOtp = async (req, res) => {
     if (user.emailVerified) return res.status(400).json({ message: "Email is already verified" });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    emailVerifyOtpStore.set(String(user._id), { otp, expiry: Date.now() + 10 * 60 * 1000 });
+    await Otp.findOneAndUpdate(
+      { key: String(user._id), type: "email_verify" },
+      { otp, createdAt: new Date() },
+      { upsert: true, new: true }
+    );
 
     const sent = await sendEmail(user.email, "Verify your AIFA email",
       `<div style="font-family:sans-serif;max-width:480px;margin:0 auto">
@@ -53,12 +56,11 @@ export const verifyUserEmailOtp = async (req, res) => {
   try {
     const { otp } = req.body;
     const userId = String(req.user._id);
-    const record = emailVerifyOtpStore.get(userId);
+    const record = await Otp.findOne({ key: userId, type: "email_verify" });
     if (!record) return res.status(400).json({ message: "OTP expired or not requested. Please resend." });
-    if (Date.now() > record.expiry) { emailVerifyOtpStore.delete(userId); return res.status(400).json({ message: "OTP expired. Please resend." }); }
     if (record.otp !== String(otp).trim()) return res.status(400).json({ message: "Invalid OTP" });
 
-    emailVerifyOtpStore.delete(userId);
+    await Otp.deleteOne({ key: userId, type: "email_verify" });
     await User.findByIdAndUpdate(userId, { emailVerified: true });
     res.json({ message: "Email verified successfully" });
   } catch (e) {

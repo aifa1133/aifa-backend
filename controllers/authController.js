@@ -2,6 +2,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Influencer from '../models/Influencer.js';
+import Otp from '../models/Otp.js';
 import bcrypt from 'bcryptjs';
 import { OAuth2Client } from 'google-auth-library';
 import nodemailer from 'nodemailer';
@@ -16,12 +17,23 @@ async function getConfig(key) {
   } catch { return process.env[key] || ""; }
 }
 
-// In-memory OTP stores (phone & email OTPs, TTL 10 min)
-const phoneOtpStore = new Map(); // phone -> { otp, expiry }
-const emailOtpStore = new Map(); // email -> { otp, expiry }
-const resetOtpStore = new Map(); // email -> { otp, expiry }
-
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+async function saveOtp(key, type, otp) {
+  await Otp.findOneAndUpdate(
+    { key, type },
+    { otp, createdAt: new Date() },
+    { upsert: true, new: true }
+  );
+}
+
+async function verifyOtp(key, type, otp) {
+  const record = await Otp.findOne({ key, type });
+  if (!record) return "not_found";
+  if (record.otp !== String(otp)) return "wrong";
+  await Otp.deleteOne({ key, type });
+  return "ok";
+}
 
 const normalizeEmail = (email) => {
   if (!email) return email;
@@ -263,7 +275,7 @@ export const sendPhoneOtp = async (req, res) => {
   if (!captchaOk) return res.status(400).json({ message: 'CAPTCHA verification failed' });
 
   const otp = generateOTP();
-  phoneOtpStore.set(phone, { otp, expiry: Date.now() + 10 * 60 * 1000 });
+  await saveOtp(phone, "phone_login", otp);
 
   const sid   = (await getConfig("TWILIO_SID"))   || process.env.ACCOUNT_SID   || process.env.TWILIO_ACCOUNT_SID   || "";
   const token = (await getConfig("TWILIO_TOKEN")) || process.env.AUTH_TOKEN    || process.env.TWILIO_AUTH_TOKEN    || "";
@@ -294,7 +306,7 @@ export const sendPhoneSignupOtp = async (req, res) => {
   if (!phone) return res.status(400).json({ message: 'Phone number required' });
 
   const otp = generateOTP();
-  phoneOtpStore.set(phone, { otp, expiry: Date.now() + 10 * 60 * 1000 });
+  await saveOtp(phone, "phone_signup", otp);
 
   const sid  = (await getConfig("TWILIO_SID"))   || process.env.ACCOUNT_SID   || process.env.TWILIO_ACCOUNT_SID   || "";
   const tok  = (await getConfig("TWILIO_TOKEN")) || process.env.AUTH_TOKEN    || process.env.TWILIO_AUTH_TOKEN    || "";
@@ -327,11 +339,9 @@ export const verifyPhoneSignupOtp = async (req, res) => {
   const { phone, otp } = req.body;
   if (!phone || !otp) return res.status(400).json({ message: 'Phone and OTP required' });
 
-  const record = phoneOtpStore.get(phone);
-  if (!record) return res.status(400).json({ message: 'OTP expired or not requested' });
-  if (Date.now() > record.expiry) { phoneOtpStore.delete(phone); return res.status(400).json({ message: 'OTP expired' }); }
-  if (record.otp !== otp.trim()) return res.status(400).json({ message: 'Invalid OTP' });
-  phoneOtpStore.delete(phone);
+  const result = await verifyOtp(phone, "phone_signup", otp.trim());
+  if (result === "not_found") return res.status(400).json({ message: 'OTP expired or not requested' });
+  if (result === "wrong") return res.status(400).json({ message: 'Invalid OTP' });
 
   res.json({ verified: true });
 };
@@ -341,11 +351,9 @@ export const verifyPhoneOtp = async (req, res) => {
   const { phone, otp } = req.body;
   if (!phone || !otp) return res.status(400).json({ message: 'Phone and OTP required' });
 
-  const record = phoneOtpStore.get(phone);
-  if (!record) return res.status(400).json({ message: 'OTP expired or not requested' });
-  if (Date.now() > record.expiry) { phoneOtpStore.delete(phone); return res.status(400).json({ message: 'OTP expired' }); }
-  if (record.otp !== otp.trim()) return res.status(400).json({ message: 'Invalid OTP' });
-  phoneOtpStore.delete(phone);
+  const result = await verifyOtp(phone, "phone_login", otp.trim());
+  if (result === "not_found") return res.status(400).json({ message: 'OTP expired or not requested' });
+  if (result === "wrong") return res.status(400).json({ message: 'Invalid OTP' });
 
   const user = await User.findOne({ phone });
   if (!user) return res.status(404).json({ message: 'No account found with this phone number. Please sign up first.' });
@@ -362,7 +370,7 @@ export const sendEmailOtp = async (req, res) => {
   if (existing) return res.status(400).json({ message: 'An account with this email already exists. Please log in.' });
 
   const otp = generateOTP();
-  emailOtpStore.set(email, { otp, expiry: Date.now() + 10 * 60 * 1000 });
+  await saveOtp(email, "email_signup", otp);
 
   const sent = await sendEmail(email, 'Verify your AIFA email',
     `<div style="font-family:sans-serif;max-width:480px;margin:0 auto">
@@ -383,12 +391,10 @@ export const verifyEmailOtp = async (req, res) => {
   const email = normalizeEmail(req.body.email);
   if (!email || !otp) return res.status(400).json({ message: 'Email and OTP required' });
 
-  const record = emailOtpStore.get(email);
-  if (!record) return res.status(400).json({ message: 'OTP expired or not requested. Please resend.' });
-  if (Date.now() > record.expiry) { emailOtpStore.delete(email); return res.status(400).json({ message: 'OTP expired. Please resend.' }); }
-  if (record.otp !== otp.trim()) return res.status(400).json({ message: 'Invalid OTP' });
+  const result = await verifyOtp(email, "email_signup", otp.trim());
+  if (result === "not_found") return res.status(400).json({ message: 'OTP expired or not requested. Please resend.' });
+  if (result === "wrong") return res.status(400).json({ message: 'Invalid OTP' });
 
-  emailOtpStore.delete(email);
   res.json({ message: 'Email verified' });
 };
 
@@ -405,7 +411,7 @@ export const forgotPasswordOtp = async (req, res) => {
   if (!user) return res.status(404).json({ message: 'No account found with this email' });
 
   const otp = generateOTP();
-  resetOtpStore.set(email, { otp, expiry: Date.now() + 10 * 60 * 1000 });
+  await saveOtp(email, "reset", otp);
 
   const sent = await sendEmail(email, 'Reset your AIFA password',
     `<div style="font-family:sans-serif;max-width:480px;margin:0 auto">
@@ -426,12 +432,9 @@ export const verifyResetOtp = async (req, res) => {
   const email = normalizeEmail(req.body.email);
   if (!email || !otp) return res.status(400).json({ message: 'Email and OTP required' });
 
-  const record = resetOtpStore.get(email);
-  if (!record) return res.status(400).json({ message: 'OTP expired or not requested. Please start again.' });
-  if (Date.now() > record.expiry) { resetOtpStore.delete(email); return res.status(400).json({ message: 'OTP expired. Please start again.' }); }
-  if (record.otp !== otp.trim()) return res.status(400).json({ message: 'Invalid OTP' });
-
-  resetOtpStore.delete(email);
+  const result = await verifyOtp(email, "reset", otp.trim());
+  if (result === "not_found") return res.status(400).json({ message: 'OTP expired or not requested. Please start again.' });
+  if (result === "wrong") return res.status(400).json({ message: 'Invalid OTP' });
 
   const user = await User.findOne({ email });
   if (!user) return res.status(404).json({ message: 'User not found' });
