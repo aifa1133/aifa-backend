@@ -65,7 +65,7 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    const amountPaise = Math.round(finalPrice * 100);
+    const amountPaise = Math.max(100, Math.round(finalPrice * 100)); // Razorpay minimum is ₹1 (100 paise)
 
     const razorpay = await getRazorpay();
     if (!razorpay) {
