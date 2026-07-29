@@ -144,7 +144,7 @@ export const verifyPayment = async (req, res) => {
             referralLink: influencer.referralLink || "",
             orderId: tx.orderId || "",
             purchaseDate: new Date(),
-            approvalStatus: "pending",
+            approvalStatus: "approved",
             paymentStatus: "unpaid",
           });
         }
