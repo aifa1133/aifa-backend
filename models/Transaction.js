@@ -8,9 +8,11 @@ const transactionSchema = new mongoose.Schema({
   amount:     { type: Number, required: true },
   currency:   { type: String, default: "INR" },
   status:     { type: String, enum: ["pending", "paid", "failed", "refunded"], default: "pending" },
-  orderId:    { type: String },
-  paymentId:  { type: String },
-  signature:  { type: String },
+  orderId:           { type: String },
+  paymentId:         { type: String },
+  signature:         { type: String },
+  couponCode:        { type: String, default: "" },
+  couponInfluencerId:{ type: mongoose.Schema.Types.ObjectId, ref: "Influencer", default: null },
 }, { timestamps: true });
 
 export default mongoose.model("Transaction", transactionSchema);

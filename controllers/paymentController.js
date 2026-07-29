@@ -26,8 +26,26 @@ async function getRazorpay() {
 
 const MODELS = { course: Course, workshop: Workshop, bootcamp: Bootcamp };
 
+/* ── GET /api/payments/validate-coupon?code=VAMSI10 ── */
+export const validateCoupon = async (req, res) => {
+  try {
+    const code = String(req.query.code || "").trim().toUpperCase();
+    if (!code) return res.status(400).json({ message: "Coupon code is required" });
+    const influencer = await Influencer.findOne({ couponCode: code, status: "active" });
+    if (!influencer) return res.status(404).json({ valid: false, message: "Invalid or expired coupon code" });
+    res.json({
+      valid: true,
+      discount: influencer.couponCommissionRate,
+      couponCode: influencer.couponCode,
+      influencerId: influencer._id,
+    });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
 export const createOrder = async (req, res) => {
-  const { itemType, itemId } = req.body;
+  const { itemType, itemId, couponCode } = req.body;
   try {
     const Model = MODELS[itemType];
     if (!Model) return res.status(400).json({ message: "Invalid item type" });
@@ -35,20 +53,32 @@ export const createOrder = async (req, res) => {
     const item = await Model.findById(itemId);
     if (!item) return res.status(404).json({ message: "Item not found" });
 
-    const amountPaise = Math.round(item.price * 100);
+    // Apply coupon discount if provided
+    let finalPrice = item.price;
+    let appliedCoupon = null;
+    if (couponCode) {
+      const inf = await Influencer.findOne({ couponCode: String(couponCode).toUpperCase(), status: "active" });
+      if (inf) {
+        const disc = Math.round(item.price * inf.couponCommissionRate) / 100;
+        finalPrice = Math.max(0, item.price - disc);
+        appliedCoupon = { influencerId: inf._id, couponCode: inf.couponCode, discountRate: inf.couponCommissionRate, discountAmount: disc };
+      }
+    }
+
+    const amountPaise = Math.round(finalPrice * 100);
 
     const razorpay = await getRazorpay();
     if (!razorpay) {
-      // Dev fallback — return a fake order so frontend can be tested
       const tx = await Transaction.create({
         user: req.user._id, itemType, itemId,
-        itemTitle: item.title, amount: item.price, status: "pending",
+        itemTitle: item.title, amount: finalPrice, status: "pending",
         orderId: `dev_order_${Date.now()}`,
+        ...(appliedCoupon ? { couponCode: appliedCoupon.couponCode, couponInfluencerId: appliedCoupon.influencerId } : {}),
       });
       return res.json({
         orderId: tx.orderId, amount: amountPaise, currency: "INR",
         keyId: "razorpay_not_configured", txId: tx._id,
-        _devMode: true,
+        appliedCoupon, _devMode: true,
       });
     }
 
@@ -60,11 +90,12 @@ export const createOrder = async (req, res) => {
 
     const tx = await Transaction.create({
       user: req.user._id, itemType, itemId,
-      itemTitle: item.title, amount: item.price,
+      itemTitle: item.title, amount: finalPrice,
       orderId: order.id, status: "pending",
+      ...(appliedCoupon ? { couponCode: appliedCoupon.couponCode, couponInfluencerId: appliedCoupon.influencerId } : {}),
     });
 
-    res.json({ orderId: order.id, amount: amountPaise, currency: "INR", keyId: process.env.RAZORPAY_KEY_ID, txId: tx._id });
+    res.json({ orderId: order.id, amount: amountPaise, currency: "INR", keyId: process.env.RAZORPAY_KEY_ID, txId: tx._id, appliedCoupon });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
@@ -123,8 +154,38 @@ export const verifyPayment = async (req, res) => {
     }
     await user.save();
 
-    // Create commission record if user was referred by an influencer
-    if (user.referredBy) {
+    // Create commission for coupon purchase (takes priority over referral link)
+    if (tx.couponInfluencerId) {
+      try {
+        const influencer = await Influencer.findById(tx.couponInfluencerId);
+        if (influencer && influencer.status === "active") {
+          const rate = influencer.couponCommissionRate || 0;
+          const commissionAmount = Math.round(tx.amount * rate) / 100;
+          await Commission.create({
+            influencerId: influencer._id,
+            studentId: user._id,
+            studentName: user.name,
+            studentEmail: user.email,
+            studentPhone: user.phone || "",
+            program: tx.itemTitle,
+            purchaseAmount: tx.amount,
+            commissionPercentage: rate,
+            commissionAmount,
+            method: "coupon",
+            couponCode: tx.couponCode || "",
+            orderId: tx.orderId || "",
+            purchaseDate: new Date(),
+            approvalStatus: "approved",
+            paymentStatus: "unpaid",
+          });
+        }
+      } catch (commErr) {
+        console.error("[COMMISSION] Coupon commission failed:", commErr.message);
+      }
+    }
+
+    // Create commission record if user was referred by an influencer (and no coupon used)
+    if (!tx.couponInfluencerId && user.referredBy) {
       try {
         const influencer = await Influencer.findById(user.referredBy);
         if (influencer && influencer.status === "active") {

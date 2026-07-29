@@ -35,7 +35,7 @@ import Notification from "./models/Notification.js";
 import CommunityThread from "./models/CommunityThread.js";
 import CommunityEvent from "./models/CommunityEvent.js";
 import { protect, adminOnly } from "./middleware/authMiddleware.js";
-import { createOrder, verifyPayment, getMyTransactions, getAllTransactions } from "./controllers/paymentController.js";
+import { createOrder, verifyPayment, getMyTransactions, getAllTransactions, validateCoupon } from "./controllers/paymentController.js";
 
 dotenv.config();
 
@@ -88,6 +88,7 @@ app.use("/api/bootcamps", bootcampRoutes);
 app.use("/api/users", userRoutes);
 
 // ── Payment routes ──────────────────────────────────────────
+app.get("/api/payments/validate-coupon", validateCoupon);
 app.post("/api/payments/create-order", protect, createOrder);
 app.post("/api/payments/verify",       protect, verifyPayment);
 app.get("/api/payments/history",       protect, getMyTransactions);
