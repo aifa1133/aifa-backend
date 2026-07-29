@@ -5,6 +5,8 @@ import Workshop from "../models/Workshop.js";
 import Bootcamp from "../models/Bootcamp.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
+import Commission from "../models/Commission.js";
+import Influencer from "../models/Influencer.js";
 
 function razorpayConfigured() {
   const k = process.env.RAZORPAY_KEY_ID;
@@ -120,6 +122,36 @@ export const verifyPayment = async (req, res) => {
       await Bootcamp.findByIdAndUpdate(tx.itemId, { $addToSet: { enrollments: user._id } });
     }
     await user.save();
+
+    // Create commission record if user was referred by an influencer
+    if (user.referredBy) {
+      try {
+        const influencer = await Influencer.findById(user.referredBy);
+        if (influencer && influencer.status === "active") {
+          const rate = influencer.referralCommissionRate || 0;
+          const commissionAmount = Math.round(tx.amount * rate) / 100;
+          await Commission.create({
+            influencerId: influencer._id,
+            studentId: user._id,
+            studentName: user.name,
+            studentEmail: user.email,
+            studentPhone: user.phone || "",
+            program: tx.itemTitle,
+            purchaseAmount: tx.amount,
+            commissionPercentage: rate,
+            commissionAmount,
+            method: "referral_link",
+            referralLink: influencer.referralLink || "",
+            orderId: tx.orderId || "",
+            purchaseDate: new Date(),
+            approvalStatus: "pending",
+            paymentStatus: "unpaid",
+          });
+        }
+      } catch (commErr) {
+        console.error("[COMMISSION] Failed to create commission record:", commErr.message);
+      }
+    }
 
     // Send enrollment confirmation notification to student
     const itemLabel = tx.itemType === "bootcamp" ? "Bootcamp" : tx.itemType === "course" ? "Course" : "Workshop";
