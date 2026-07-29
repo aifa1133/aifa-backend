@@ -61,14 +61,29 @@ const generateToken = (id) => {
 
 // --- REGISTER ---
 export const register = async (req, res) => {
-  const { name, phone, password } = req.body;
+  const { name, phone, password, referralCode } = req.body;
   const email = normalizeEmail(req.body.email);
   try {
     if (password && /\s/.test(password)) return res.status(400).json({ message: 'Password cannot contain spaces.' });
     const userExists = await User.findOne({ email });
     if (userExists) return res.status(400).json({ message: 'User already exists' });
 
-    const user = await User.create({ name, email, phone, password });
+    // Resolve referral code → influencer (check couponCode or referral slug)
+    let referredBy = null;
+    if (referralCode) {
+      const code = String(referralCode).trim().toUpperCase();
+      const slug = String(referralCode).trim().toLowerCase();
+      const inf = await Influencer.findOne({
+        $or: [
+          { couponCode: code },
+          { referralLink: { $regex: `ref=${slug}$`, $options: "i" } },
+        ],
+        status: "active",
+      });
+      if (inf) referredBy = inf._id;
+    }
+
+    const user = await User.create({ name, email, phone, password, ...(referredBy && { referredBy }) });
     if (user) {
       res.status(201).json({
         _id: user._id,

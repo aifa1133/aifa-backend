@@ -40,6 +40,7 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  referredBy: { type: mongoose.Schema.Types.ObjectId, ref: "Influencer", default: null },
   profilePicture: {
     type: String,
     default: ""
