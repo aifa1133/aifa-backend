@@ -37,6 +37,7 @@ const influencerSchema = new mongoose.Schema(
     upiId: { type: String, default: "" },
 
     status: { type: String, enum: ["active", "inactive"], default: "active" },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   },
   { timestamps: true }
 );

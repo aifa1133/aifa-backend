@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import Influencer from "../models/Influencer.js";
 import Commission from "../models/Commission.js";
 import Payout from "../models/Payout.js";
+import User from "../models/User.js";
 
 const oid = (v) => new mongoose.Types.ObjectId(String(v));
 const rx = (s) => new RegExp(String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
@@ -111,6 +112,9 @@ export const createInfluencer = async (req, res) => {
       ? String(password)
       : `aifa${Math.random().toString(36).slice(2, 8)}`;
 
+    // Link to existing User account if email matches
+    const linkedUser = await User.findOne({ email: String(email).toLowerCase().trim() }).select("_id");
+
     const influencer = await Influencer.create({
       fullName, email: String(email).toLowerCase().trim(), phone: phone || "",
       password: tempPassword,
@@ -122,6 +126,7 @@ export const createInfluencer = async (req, res) => {
       bankAccountHolder: bankAccountHolder || "", bankName: bankName || "",
       bankAccountNumber: bankAccountNumber || "", bankIFSC: (bankIFSC || "").toUpperCase(), upiId: upiId || "",
       status: status === "inactive" ? "inactive" : "active",
+      ...(linkedUser && { userId: linkedUser._id }),
     });
 
     const out = influencer.toObject();

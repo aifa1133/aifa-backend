@@ -1,6 +1,7 @@
 
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import Influencer from '../models/Influencer.js';
 import bcrypt from 'bcryptjs';
 import { OAuth2Client } from 'google-auth-library';
 import nodemailer from 'nodemailer';
@@ -91,6 +92,12 @@ export const login = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (user && (await bcrypt.compare(password, user.password))) {
+      // Check if this user is also an influencer (same email)
+      const influencer = await Influencer.findOne({ email: email.toLowerCase() }).select("-password");
+      const influencerToken = influencer && influencer.status === "active"
+        ? jwt.sign({ id: influencer._id, role: "influencer" }, process.env.JWT_SECRET, { expiresIn: "7d" })
+        : null;
+
       res.json({
         _id: user._id,
         name: user.name,
@@ -98,6 +105,7 @@ export const login = async (req, res) => {
         profilePicture: user.profilePicture || "",
         emailVerified: !!user.emailVerified,
         token: generateToken(user._id),
+        ...(influencerToken && { influencerToken, influencer: { _id: influencer._id, couponCode: influencer.couponCode } }),
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
