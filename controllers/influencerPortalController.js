@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Commission from "../models/Commission.js";
 import Payout from "../models/Payout.js";
 import Influencer from "../models/Influencer.js";
+import User from "../models/User.js";
 import { publicProfile } from "./influencerAuthController.js";
 
 const oid = (v) => new mongoose.Types.ObjectId(String(v));
@@ -66,24 +67,53 @@ export const getStats = async (req, res) => {
 /* ── GET /api/influencer/referrals ───────────────────────── */
 export const getReferrals = async (req, res) => {
   try {
-    const { method = "", status = "", search = "", page = 1, limit = 10 } = req.query;
+    const { search = "", page = 1, limit = 20 } = req.query;
     const p = Math.max(1, parseInt(page, 10) || 1);
-    const l = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+    const l = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const infId = oid(req.influencer._id);
 
-    const filter = { influencerId: req.influencer._id };
-    if (method) filter.method = method;
-    if (status) filter.approvalStatus = status;
-    if (search) {
+    // All users who signed up via this influencer's referral
+    const referred = await User.find({ referredBy: infId }, "name email createdAt phone").sort({ createdAt: -1 });
+
+    // Sum commissions per student email
+    const commAgg = await Commission.aggregate([
+      { $match: { influencerId: infId } },
+      {
+        $group: {
+          _id: "$studentEmail",
+          totalEarned: { $sum: "$commissionAmount" },
+          purchaseCount: { $sum: 1 },
+          lastPurchase: { $max: "$purchaseDate" },
+        },
+      },
+    ]);
+    const commMap = {};
+    commAgg.forEach((c) => { commMap[c._id] = c; });
+
+    // Build unified list
+    let items = referred.map((u) => {
+      const c = commMap[u.email] || {};
+      return {
+        _id: u._id,
+        studentName: u.name,
+        studentEmail: u.email,
+        joinedAt: u.createdAt,
+        totalEarned: c.totalEarned || 0,
+        purchaseCount: c.purchaseCount || 0,
+        lastPurchase: c.lastPurchase || null,
+      };
+    });
+
+    // Search filter
+    if (search.trim()) {
       const rx = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-      filter.$or = [{ studentName: rx }, { studentEmail: rx }, { program: rx }, { orderId: rx }];
+      items = items.filter((i) => rx.test(i.studentName) || rx.test(i.studentEmail));
     }
 
-    const [items, total] = await Promise.all([
-      Commission.find(filter).sort({ purchaseDate: -1, createdAt: -1 }).skip((p - 1) * l).limit(l),
-      Commission.countDocuments(filter),
-    ]);
+    const total = items.length;
+    const paginated = items.slice((p - 1) * l, p * l);
 
-    res.json({ items, total, page: p, limit: l, pages: Math.max(1, Math.ceil(total / l)) });
+    res.json({ items: paginated, total, page: p, limit: l, pages: Math.max(1, Math.ceil(total / l)) });
   } catch (e) {
     res.status(500).json({ message: e.message || "Server error" });
   }
