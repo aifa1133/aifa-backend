@@ -43,33 +43,45 @@ async function buildReferralLink(fullName) {
   return `${SITE}/?ref=${slug}`;
 }
 
-/* Attach aggregated commission stats to a list of influencers */
+/* Attach aggregated commission stats + signup leads to a list of influencers */
 async function attachStats(influencers) {
   const ids = influencers.map((i) => i._id);
   if (!ids.length) return [];
-  const agg = await Commission.aggregate([
-    { $match: { influencerId: { $in: ids } } },
-    {
-      $group: {
-        _id: "$influencerId",
-        lifetimeEarnings: {
-          $sum: { $cond: [{ $eq: ["$approvalStatus", "approved"] }, "$commissionAmount", 0] },
-        },
-        pendingCommission: {
-          $sum: {
-            $cond: [
-              { $and: [{ $eq: ["$approvalStatus", "approved"] }, { $eq: ["$paymentStatus", "unpaid"] }] },
-              "$commissionAmount",
-              0,
-            ],
+
+  const [agg, leadsAgg] = await Promise.all([
+    Commission.aggregate([
+      { $match: { influencerId: { $in: ids } } },
+      {
+        $group: {
+          _id: "$influencerId",
+          lifetimeEarnings: {
+            $sum: { $cond: [{ $eq: ["$approvalStatus", "approved"] }, "$commissionAmount", 0] },
           },
+          pendingCommission: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ["$approvalStatus", "approved"] }, { $eq: ["$paymentStatus", "unpaid"] }] },
+                "$commissionAmount",
+                0,
+              ],
+            },
+          },
+          totalReferrals: { $sum: 1 },
         },
-        totalReferrals: { $sum: 1 },
       },
-    },
+    ]),
+    // Count users who signed up via this influencer's referral link/coupon
+    User.aggregate([
+      { $match: { referredBy: { $in: ids } } },
+      { $group: { _id: "$referredBy", signupLeads: { $sum: 1 } } },
+    ]),
   ]);
+
   const map = {};
   agg.forEach((a) => { map[String(a._id)] = a; });
+  const leadsMap = {};
+  leadsAgg.forEach((a) => { leadsMap[String(a._id)] = a.signupLeads; });
+
   return influencers.map((i) => {
     const o = i.toObject ? i.toObject() : i;
     const s = map[String(i._id)] || {};
@@ -78,6 +90,7 @@ async function attachStats(influencers) {
       lifetimeEarnings: s.lifetimeEarnings || 0,
       pendingCommission: s.pendingCommission || 0,
       totalReferrals: s.totalReferrals || 0,
+      signupLeads: leadsMap[String(i._id)] || 0,
     };
   });
 }
