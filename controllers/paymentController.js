@@ -175,7 +175,7 @@ export const verifyPayment = async (req, res) => {
             couponCode: tx.couponCode || "",
             orderId: tx.orderId || "",
             purchaseDate: new Date(),
-            approvalStatus: "approved",
+            approvalStatus: "pending",
             paymentStatus: "unpaid",
           });
         }
@@ -205,7 +205,7 @@ export const verifyPayment = async (req, res) => {
             referralLink: influencer.referralLink || "",
             orderId: tx.orderId || "",
             purchaseDate: new Date(),
-            approvalStatus: "approved",
+            approvalStatus: "pending",
             paymentStatus: "unpaid",
           });
         }

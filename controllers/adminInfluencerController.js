@@ -54,8 +54,12 @@ async function attachStats(influencers) {
       {
         $group: {
           _id: "$influencerId",
+          lifetimeSales: { $sum: "$purchaseAmount" },
           lifetimeEarnings: {
             $sum: { $cond: [{ $eq: ["$approvalStatus", "approved"] }, "$commissionAmount", 0] },
+          },
+          pendingApproval: {
+            $sum: { $cond: [{ $eq: ["$approvalStatus", "pending"] }, "$commissionAmount", 0] },
           },
           pendingCommission: {
             $sum: {
@@ -65,6 +69,9 @@ async function attachStats(influencers) {
                 0,
               ],
             },
+          },
+          totalPaid: {
+            $sum: { $cond: [{ $eq: ["$paymentStatus", "paid"] }, "$commissionAmount", 0] },
           },
           totalReferrals: { $sum: 1 },
         },
@@ -87,8 +94,11 @@ async function attachStats(influencers) {
     const s = map[String(i._id)] || {};
     return {
       ...o,
+      lifetimeSales: s.lifetimeSales || 0,
       lifetimeEarnings: s.lifetimeEarnings || 0,
+      pendingApproval: s.pendingApproval || 0,
       pendingCommission: s.pendingCommission || 0,
+      totalPaid: s.totalPaid || 0,
       totalReferrals: s.totalReferrals || 0,
       signupLeads: leadsMap[String(i._id)] || 0,
     };
