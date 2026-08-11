@@ -7,6 +7,8 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Commission from "../models/Commission.js";
 import Influencer from "../models/Influencer.js";
+import Certificate from "../models/Certificate.js";
+import CertSettings from "../models/CertSettings.js";
 
 function razorpayConfigured() {
   const k = process.env.RAZORPAY_KEY_ID;
@@ -222,6 +224,26 @@ export const verifyPayment = async (req, res) => {
       body: `Your payment of ₹${tx.amount} was successful. You are now enrolled in "${tx.itemTitle}". Head to your dashboard to get started!`,
       type: "enrollment",
     }).catch(() => {});
+
+    // Auto-issue certificate if enabled in settings
+    try {
+      const settings = await CertSettings.findOne();
+      if (settings?.autoIssue) {
+        const already = await Certificate.findOne({ user: user._id, courseTitle: tx.itemTitle });
+        if (!already) {
+          const titleMap = { course: "Certificate of Completion", workshop: "Workshop Certificate", bootcamp: "Bootcamp Certificate" };
+          await Certificate.create({
+            user:        user._id,
+            title:       titleMap[tx.itemType] || "Certificate of Completion",
+            courseTitle: tx.itemTitle,
+            itemType:    tx.itemType,
+            status:      settings.manualApproval ? "pending" : "active",
+          });
+        }
+      }
+    } catch (certErr) {
+      console.error("[AUTO-CERT]", certErr.message);
+    }
 
     res.json({ success: true, message: "Payment verified and enrollment confirmed", transaction: tx });
   } catch (e) {

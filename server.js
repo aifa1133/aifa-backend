@@ -20,6 +20,7 @@ import Workshop from "./models/Workshop.js";
 import Bootcamp from "./models/Bootcamp.js";
 import Transaction from "./models/Transaction.js";
 import Certificate from "./models/Certificate.js";
+import CertSettings from "./models/CertSettings.js";
 import Job from "./models/Job.js";
 import Resource from "./models/Resource.js";
 import ServiceRequest   from "./models/ServiceRequest.js";
@@ -177,7 +178,7 @@ app.get("/api/admin/analytics", protect, adminOnly, async (req, res) => {
 // ── Certificates ────────────────────────────────────────────
 app.get("/api/certificates/me", protect, async (req, res) => {
   try {
-    const certs = await Certificate.find({ user: req.user._id }).sort({ createdAt: -1 });
+    const certs = await Certificate.find({ user: req.user._id, status: { $ne: "pending" } }).sort({ createdAt: -1 });
     res.json(certs);
   } catch { res.status(500).json({ message: "Server error" }); }
 });
@@ -202,6 +203,36 @@ app.delete("/api/certificates/:id", protect, adminOnly, async (req, res) => {
   try {
     await Certificate.findByIdAndDelete(req.params.id);
     res.json({ message: "Deleted" });
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+app.put("/api/certificates/:id/approve", protect, adminOnly, async (req, res) => {
+  try {
+    const cert = await Certificate.findByIdAndUpdate(req.params.id, { status: "active" }, { new: true });
+    if (!cert) return res.status(404).json({ message: "Certificate not found" });
+    res.json(cert);
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+// ── Certificate Settings ─────────────────────────────────────
+app.get("/api/cert-settings", protect, adminOnly, async (req, res) => {
+  try {
+    let s = await CertSettings.findOne();
+    if (!s) s = await CertSettings.create({});
+    res.json(s);
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+app.put("/api/cert-settings", protect, adminOnly, async (req, res) => {
+  try {
+    const { autoIssue, manualApproval, idFormat } = req.body;
+    let s = await CertSettings.findOne();
+    if (!s) s = new CertSettings();
+    if (autoIssue      !== undefined) s.autoIssue      = autoIssue;
+    if (manualApproval !== undefined) s.manualApproval = manualApproval;
+    if (idFormat       !== undefined) s.idFormat       = idFormat;
+    await s.save();
+    res.json(s);
   } catch { res.status(500).json({ message: "Server error" }); }
 });
 
