@@ -219,11 +219,12 @@ export const verifyPayment = async (req, res) => {
     // Send enrollment confirmation notification to student
     const itemLabel = tx.itemType === "bootcamp" ? "Bootcamp" : tx.itemType === "course" ? "Course" : "Workshop";
     await Notification.create({
-      recipients: [user._id],
-      title: `🎉 Enrollment Confirmed — ${tx.itemTitle}`,
-      body: `Your payment of ₹${tx.amount} was successful. You are now enrolled in "${tx.itemTitle}". Head to your dashboard to get started!`,
-      type: "enrollment",
-    }).catch(() => {});
+      user: user._id,
+      title: `Enrollment Confirmed — ${tx.itemTitle}`,
+      message: `Your payment of Rs.${tx.amount} was successful. You are now enrolled in "${tx.itemTitle}". Head to your dashboard to get started!`,
+      type: "payment",
+      isRead: false,
+    }).catch((e) => console.error("[NOTIFICATION] Failed to create payment notification:", e.message));
 
     // Auto-issue certificate if enabled in settings
     try {

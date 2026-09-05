@@ -8,6 +8,9 @@ import {
   forgotPasswordOtp, verifyResetOtp, resetPasswordOtp,
   guestCheckout,
 } from "../controllers/authController.js";
+import { protect } from "../middleware/authMiddleware.js";
+import Influencer from "../models/Influencer.js";
+import jwt from "jsonwebtoken";
 
 const router = express.Router();
 
@@ -37,5 +40,16 @@ router.post("/verify-email-otp",     verifyEmailOtp);
 router.post("/forgot-password-otp",  forgotPasswordOtp);
 router.post("/verify-reset-otp",     verifyResetOtp);
 router.post("/reset-password-otp",   resetPasswordOtp);
+
+/* Returns a fresh influencer token for a logged-in student whose influencer account
+   was created after their last login (so they never got it in the login response) */
+router.get("/influencer-token", protect, async (req, res) => {
+  try {
+    const influencer = await Influencer.findOne({ email: req.user.email?.toLowerCase() }).select("-password");
+    if (!influencer || influencer.status !== "active") return res.status(404).json({ message: "No active influencer account" });
+    const influencerToken = jwt.sign({ id: influencer._id, role: "influencer" }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    res.json({ influencerToken, influencer: { _id: influencer._id, couponCode: influencer.couponCode } });
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
 
 export default router;

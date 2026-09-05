@@ -35,6 +35,17 @@ router.get("/me/order", protect, async (req, res) => {
 // Admin routes
 router.get("/", protect, adminOnly, getAllUsers);
 router.put("/:id/role", protect, adminOnly, updateUserRole);
+router.put("/:id/status", protect, adminOnly, async (req, res) => {
+  try {
+    const user = await (await import("../models/User.js")).default.findByIdAndUpdate(
+      req.params.id,
+      { isActive: !!req.body.isActive },
+      { new: true }
+    ).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
 router.delete("/:id", protect, adminOnly, deleteUser);
 
 export default router;

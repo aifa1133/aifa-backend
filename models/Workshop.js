@@ -19,7 +19,13 @@ const workshopSchema = new mongoose.Schema({
   trainer:     { type: String, default: "" },
   zoomLink:    { type: String, default: "" },
   endTime:     { type: String, default: "" },
-  isCancelled: { type: Boolean, default: false },
+  isCancelled:      { type: Boolean, default: false },
+  learningOutcomes: [{ title: String, description: String }],
+  projects:         [{ label: String, title: String, image: String, description: String }],
+  targetAudience:   [{ title: String, description: String }],
+  faqs:             [{ question: String, answer: String }],
+  testimonials:     [{ name: String, role: String, avatar: String, quote: String }],
+  previewVideoUrl:  { type: String, default: "" },
 }, { timestamps: true });
 
 export default mongoose.model("Workshop", workshopSchema);

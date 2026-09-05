@@ -8,6 +8,7 @@ const lessonSchema = new mongoose.Schema({
   order:    { type: Number, default: 0 },
   isFree:   { type: Boolean, default: false },
   type:     { type: String, default: "Video" },
+  module:   { type: String, default: "" },
 });
 
 const courseSchema = new mongoose.Schema({

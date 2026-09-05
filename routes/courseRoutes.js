@@ -3,6 +3,7 @@ import {
   getCourses, getCourseById, enrollCourse, getEnrolledCourses,
   createCourse, updateCourse, deleteCourse,
   updateProgress, addLesson, updateLesson, deleteLesson,
+  getCourseEnrollments,
 } from "../controllers/courseController.js";
 import { protect, adminOnly, optionalProtect } from "../middleware/authMiddleware.js";
 
@@ -15,6 +16,7 @@ router.post("/:id/enroll", protect, enrollCourse);
 router.put("/:id/progress", protect, updateProgress);
 
 // Admin routes
+router.get("/:id/enrollments", protect, adminOnly, getCourseEnrollments);
 router.post("/", protect, adminOnly, createCourse);
 router.put("/:id", protect, adminOnly, updateCourse);
 router.delete("/:id", protect, adminOnly, deleteCourse);

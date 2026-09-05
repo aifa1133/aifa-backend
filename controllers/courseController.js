@@ -152,6 +152,37 @@ export const deleteLesson = async (req, res) => {
   }
 };
 
+export const getCourseEnrollments = async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const users = await User.find({ enrolledCourses: courseId })
+      .select("name email phone courseProgress createdAt lastActive")
+      .lean();
+    const result = users.map(u => {
+      const prog = (u.courseProgress || []).find(p => p.course?.toString() === courseId);
+      const totalLessons = prog?.completedLessons?.length ?? 0;
+      const percent = prog?.percentComplete ?? 0;
+      const lastActivity = prog?.lastAccessedAt || u.lastActive || null;
+      const enrolledOn = u.createdAt;
+      const status = percent === 100 ? "Completed" : lastActivity && (Date.now() - new Date(lastActivity)) < 7 * 24 * 60 * 60 * 1000 ? "Active" : "Inactive";
+      return {
+        _id: u._id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone || "",
+        enrolledOn,
+        percentComplete: percent,
+        completedLessons: totalLessons,
+        lastActivity,
+        status,
+      };
+    });
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
 export const getEnrolledCourses = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
