@@ -8,7 +8,7 @@ import { protect, adminOnly } from "../middleware/authMiddleware.js";
 const router = express.Router();
 
 router.get("/", getWorkshops);
-router.get("/:id", protect, adminOnly, getWorkshopById);
+router.get("/:id", getWorkshopById);
 router.post("/:id/register", protect, registerWorkshop);
 
 // Admin routes
