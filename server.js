@@ -14,6 +14,7 @@ import bootcampRoutes from "./routes/bootcampRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import influencerRoutes from "./routes/influencerRoutes.js";
 import adminInfluencerRoutes from "./routes/adminInfluencerRoutes.js";
+import promptRoutes from "./routes/promptRoutes.js";
 import User from "./models/User.js";
 import Course from "./models/Course.js";
 import Workshop from "./models/Workshop.js";
@@ -82,11 +83,25 @@ const imageUpload = multer({ storage: imageStorage, limits: { fileSize: 5 * 1024
   else cb(new Error("Only image files allowed"));
 }});
 
+// Multer — generic file upload (PDFs, ZIPs, PPTX, DOCX, MP4)
+const fileStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, "uploads", "files");
+    import("fs").then(({ default: fs }) => { fs.mkdirSync(dir, { recursive: true }); cb(null, dir); });
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `file-${Date.now()}-${Math.random().toString(36).slice(2,7)}${ext}`);
+  },
+});
+const fileUpload = multer({ storage: fileStorage, limits: { fileSize: 100 * 1024 * 1024 } });
+
 app.use("/api/auth", authRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/workshops", workshopRoutes);
 app.use("/api/bootcamps", bootcampRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/prompts", promptRoutes);
 
 // ── Payment routes ──────────────────────────────────────────
 app.get("/api/payments/validate-coupon", validateCoupon);
@@ -320,6 +335,19 @@ app.delete("/api/jobs/:id", protect, adminOnly, async (req, res) => {
   } catch { res.status(500).json({ message: "Server error" }); }
 });
 
+app.post("/api/jobs/:id/apply", protect, async (req, res) => {
+  try {
+    const job = await Job.findById(req.params.id);
+    if (!job) return res.status(404).json({ message: "Job not found" });
+    const already = job.applicants?.some(a => String(a.userId) === String(req.user._id));
+    if (already) return res.status(400).json({ message: "Already applied" });
+    job.applicants = job.applicants || [];
+    job.applicants.push({ userId: req.user._id, name: req.user.name, email: req.user.email, appliedAt: new Date() });
+    await job.save();
+    res.json({ message: "Application submitted" });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
 // ── Resources ────────────────────────────────────────────────
 app.get("/api/resources", async (req, res) => {
   try {
@@ -357,6 +385,15 @@ app.post("/api/uploads/image", protect, adminOnly, imageUpload.single("image"), 
     res.json({ url: `/api/uploads/images/${req.file.filename}` });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
+
+// ── Generic file upload (PDF, ZIP, DOCX, PPTX, MP4) ──────────
+app.post("/api/uploads/file", protect, adminOnly, fileUpload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    res.json({ url: `/api/uploads/files/${req.file.filename}`, name: req.file.originalname });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+app.use("/api/uploads/files", express.static(path.join(__dirname, "uploads", "files")));
 
 // ── Avatar upload ─────────────────────────────────────────────
 app.put("/api/users/me/avatar", protect, avatarUpload.single("avatar"), async (req, res) => {
@@ -717,6 +754,14 @@ app.post("/api/community/events", protect, adminOnly, async (req, res) => {
   try {
     const ev = await CommunityEvent.create(req.body);
     res.status(201).json(ev);
+  } catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.put("/api/community/events/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const ev = await CommunityEvent.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!ev) return res.status(404).json({ message: "Not found" });
+    res.json(ev);
   } catch (e) { res.status(400).json({ message: e.message }); }
 });
 
