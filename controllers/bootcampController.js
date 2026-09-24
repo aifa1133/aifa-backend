@@ -3,7 +3,7 @@ import User from "../models/User.js";
 
 export const getBootcamps = async (req, res) => {
   try {
-    const bootcamps = await Bootcamp.find({ isPublished: true });
+    const bootcamps = await Bootcamp.find().sort({ isPublished: -1, createdAt: -1 });
     res.json(bootcamps);
   } catch (e) {
     res.status(500).json({ message: e.message });
