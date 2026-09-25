@@ -9,6 +9,7 @@ const jobSchema = new mongoose.Schema({
   timeline:    { type: String },
   skills:      [String],
   isActive:    { type: Boolean, default: true },
+  applicants:  [{ userId: mongoose.Schema.Types.ObjectId, name: String, email: String, appliedAt: Date }],
 }, { timestamps: true });
 
 export default mongoose.model("Job", jobSchema);
