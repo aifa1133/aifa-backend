@@ -4,6 +4,8 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import multer from "multer";
+import { v2 as cloudinary } from "cloudinary";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
 import connectDB from "./config/db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -45,13 +47,20 @@ const app = express();
 
 connectDB();
 
+// Cloudinary config — parse CLOUDINARY_URL: cloudinary://key:secret@cloud_name
+const _cldUrl = process.env.CLOUDINARY_URL || "";
+const _cldMatch = _cldUrl.match(/cloudinary:\/\/(\d+):([^@]+)@(.+)/);
+if (_cldMatch) {
+  cloudinary.config({ api_key: _cldMatch[1], api_secret: _cldMatch[2], cloud_name: _cldMatch[3] });
+}
+
 app.use(cors());
 app.use(express.json());
 
-// Serve uploaded avatars
+// Serve uploaded avatars (local fallback for avatars)
 app.use("/api/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Multer — avatar upload
+// Multer — avatar upload (keep local for avatars)
 const avatarStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, "uploads");
@@ -67,18 +76,16 @@ const avatarUpload = multer({ storage: avatarStorage, limits: { fileSize: 5 * 10
   else cb(new Error("Only image files allowed"));
 }});
 
-// Multer — generic image upload (workshops, courses, etc.)
-const imageStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, "uploads", "images");
-    import("fs").then(({ default: fs }) => { fs.mkdirSync(dir, { recursive: true }); cb(null, dir); });
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
-    cb(null, `img-${Date.now()}-${Math.random().toString(36).slice(2,7)}${ext}`);
+// Multer — generic image upload via Cloudinary
+const cloudinaryStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "aifa",
+    allowed_formats: ["jpg", "jpeg", "png", "webp", "gif"],
+    transformation: [{ quality: "auto", fetch_format: "auto" }],
   },
 });
-const imageUpload = multer({ storage: imageStorage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: (req, file, cb) => {
+const imageUpload = multer({ storage: cloudinaryStorage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: (req, file, cb) => {
   if (file.mimetype.startsWith("image/")) cb(null, true);
   else cb(new Error("Only image files allowed"));
 }});
@@ -378,11 +385,11 @@ app.delete("/api/resources/:id", protect, adminOnly, async (req, res) => {
   } catch { res.status(500).json({ message: "Server error" }); }
 });
 
-// ── Generic image upload ──────────────────────────────────────
+// ── Generic image upload → Cloudinary ────────────────────────
 app.post("/api/uploads/image", protect, adminOnly, imageUpload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-    res.json({ url: `/api/uploads/images/${req.file.filename}` });
+    res.json({ url: req.file.path, public_id: req.file.filename });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
