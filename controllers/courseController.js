@@ -13,7 +13,8 @@ const findCourse = async (param) => {
 export const getCourses = async (req, res) => {
   try {
     const query = req.query.all === "true" ? {} : { isPublished: true };
-    const courses = await Course.find(query).select("-lessons");
+    const selectFields = req.query.all === "true" ? "" : "-lessons";
+    const courses = await Course.find(query).select(selectFields);
     /* Add enrollment count from User collection */
     const ids = courses.map(c => c._id);
     const counts = await User.aggregate([

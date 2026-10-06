@@ -53,7 +53,10 @@ export const createOrder = async (req, res) => {
     const Model = MODELS[itemType];
     if (!Model) return res.status(400).json({ message: "Invalid item type" });
 
-    const item = await Model.findById(itemId);
+    const isObjectId = /^[a-f\d]{24}$/i.test(itemId);
+    const item = isObjectId
+      ? await Model.findById(itemId)
+      : await Model.findOne({ slug: itemId });
     if (!item) return res.status(404).json({ message: "Item not found" });
 
     // Apply coupon discount if provided
@@ -150,7 +153,8 @@ export const verifyPayment = async (req, res) => {
       user.enrolledCourses.push(tx.itemId);
     } else if (tx.itemType === "workshop" && !user.enrolledWorkshops.includes(tx.itemId)) {
       user.enrolledWorkshops.push(tx.itemId);
-      await Workshop.findByIdAndUpdate(tx.itemId, { $addToSet: { registrations: user._id } });
+      const wQuery = /^[a-f\d]{24}$/i.test(tx.itemId) ? { _id: tx.itemId } : { slug: tx.itemId };
+      await Workshop.findOneAndUpdate(wQuery, { $addToSet: { registrations: user._id } });
     } else if (tx.itemType === "bootcamp" && !user.enrolledBootcamps.includes(tx.itemId)) {
       user.enrolledBootcamps.push(tx.itemId);
       await Bootcamp.findByIdAndUpdate(tx.itemId, { $addToSet: { enrollments: user._id } });
@@ -220,7 +224,8 @@ export const verifyPayment = async (req, res) => {
     // Send workshop confirmation email
     if (tx.itemType === "workshop") {
       try {
-        const workshop = await Workshop.findById(tx.itemId);
+        const wq = /^[a-f\d]{24}$/i.test(tx.itemId) ? { _id: tx.itemId } : { slug: tx.itemId };
+        const workshop = await Workshop.findOne(wq);
         await sendWorkshopConfirmation({
           to: user.email,
           name: user.name,

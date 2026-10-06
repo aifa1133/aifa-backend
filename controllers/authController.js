@@ -113,6 +113,9 @@ export const register = async (req, res) => {
       });
     }
   } catch (error) {
+    if (error.code === 11000 && error.keyPattern?.phone) {
+      return res.status(400).json({ message: 'This mobile number is already linked to another account. Please log in.' });
+    }
     res.status(500).json({ message: error.message || 'Server error' });
   }
 };
@@ -516,6 +519,9 @@ export const guestCheckout = async (req, res) => {
       token: generateToken(user._id),
     });
   } catch (err) {
+    if (err.code === 11000 && err.keyPattern?.phone) {
+      return res.status(409).json({ code: "PHONE_EXISTS", message: "This mobile number is already linked to another account. Please log in." });
+    }
     res.status(500).json({ message: err.message || "Guest checkout failed" });
   }
 };
@@ -550,9 +556,10 @@ export const setGuestPassword = async (req, res) => {
       return res.status(400).json({ message: "Password already set" });
 
     user.password = password; // pre-save hook in User model handles hashing
+    user.emailVerified = true;
     await user.save();
 
-    res.json({ message: "Password set successfully" });
+    res.json({ message: "Password set successfully", emailVerified: true });
   } catch (err) {
     res.status(500).json({ message: err.message || "Failed to set password" });
   }

@@ -71,11 +71,19 @@ export const verifyUserEmailOtp = async (req, res) => {
 export const getMyProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
-      .select("-password")
       .populate("enrolledCourses", "title image duration price")
       .populate("enrolledWorkshops", "title image duration price scheduledAt")
       .populate("enrolledBootcamps", "title image duration price startDate");
-    res.json(user);
+
+    // Auto-verify: password users and Google users should always be verified
+    if (!user.emailVerified && (user.password || user.isGoogleUser)) {
+      user.emailVerified = true;
+      await user.save();
+    }
+
+    const userObj = user.toObject();
+    delete userObj.password;
+    res.json(userObj);
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
@@ -104,8 +112,9 @@ export const setInitialPassword = async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: "User not found" });
     user.password = password;
+    user.emailVerified = true;
     await user.save();
-    res.json({ message: "Password set successfully" });
+    res.json({ message: "Password set successfully", emailVerified: true });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }

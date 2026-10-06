@@ -18,9 +18,9 @@ const userSchema = new mongoose.Schema({
     ],
   },
   // ✅ CHANGE: Made phone optional (not required) for Google users
-  phone: { 
-    type: String, 
-    required: false 
+  phone: {
+    type: String,
+    required: false,
   },
   // ✅ CHANGE: Made password optional for Google users
   password: { 

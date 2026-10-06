@@ -30,7 +30,9 @@ export const getWorkshops = async (req, res) => {
 
 export const registerWorkshop = async (req, res) => {
   try {
-    const workshop = await Workshop.findById(req.params.id);
+    const param = req.params.id;
+    const isObjectId = mongoose.Types.ObjectId.isValid(param) && param.length === 24;
+    const workshop = await Workshop.findOne(isObjectId ? { _id: param } : { slug: param });
     if (!workshop) return res.status(404).json({ message: "Workshop not found" });
     if (workshop.registrations.length >= workshop.seats) {
       return res.status(400).json({ message: "Workshop is full" });

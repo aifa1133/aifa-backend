@@ -314,6 +314,67 @@ app.get("/api/bootcamps/:id/students", protect, adminOnly, async (req, res) => {
 });
 
 // ── Jobs ─────────────────────────────────────────────────────
+
+/* In-memory cache for external jobs — refreshed every 6 hours */
+let _extJobCache = { data: [], fetchedAt: 0 };
+const EXT_CACHE_TTL = 6 * 60 * 60 * 1000;
+
+async function getPlatformValue(key) {
+  try {
+    const c = await PlatformConfig.findOne({ key }).lean();
+    return (c && c.value) ? c.value : process.env[key] || "";
+  } catch { return process.env[key] || ""; }
+}
+
+app.get("/api/jobs/external", async (req, res) => {
+  try {
+    const now = Date.now();
+    if (now - _extJobCache.fetchedAt < EXT_CACHE_TTL && _extJobCache.data.length > 0) {
+      return res.json(_extJobCache.data);
+    }
+
+    const appId  = await getPlatformValue("ADZUNA_APP_ID");
+    const appKey = await getPlatformValue("ADZUNA_APP_KEY");
+    if (!appId || !appKey) return res.json([]);
+
+    const keywords = "AI film AI video AI animation generative AI creative";
+    const url = `https://api.adzuna.com/v1/api/jobs/in/search/1?app_id=${appId}&app_key=${appKey}&results_per_page=20&what_or=${encodeURIComponent(keywords)}&content-type=application/json`;
+
+    const resp = await fetch(url);
+    if (!resp.ok) return res.json([]);
+    const data = await resp.json();
+
+    const TAG_MAP = { film: "AI Film", video: "AI Film", animat: "AI Editing", edit: "AI Editing", sound: "AI Music", music: "AI Music", story: "AI Story", script: "AI Story", ads: "AI Ads", marketing: "AI Ads" };
+    const guessTag = (title = "") => {
+      const t = title.toLowerCase();
+      for (const [k, v] of Object.entries(TAG_MAP)) if (t.includes(k)) return v;
+      return "AI Film";
+    };
+
+    const jobs = (data.results || []).map(j => ({
+      _id: `ext_${j.id}`,
+      title: j.title,
+      description: (j.description || "").substring(0, 200).replace(/<[^>]*>/g, "") + "…",
+      type: (j.contract_time || "PART-TIME").toUpperCase().replace("_", "-"),
+      tag: guessTag(j.title),
+      budget: j.salary_min ? `₹${Math.round(j.salary_min / 12 / 160)}/hr` : null,
+      timeline: "Flexible",
+      category: j.category?.label || "AI & Creative",
+      company: j.company?.display_name || "",
+      location: j.location?.display_name || "",
+      link: j.redirect_url,
+      createdAt: j.created,
+      source: "Adzuna",
+    }));
+
+    _extJobCache = { data: jobs, fetchedAt: now };
+    res.json(jobs);
+  } catch (e) {
+    console.error("[external jobs]", e.message);
+    res.json([]);
+  }
+});
+
 app.get("/api/jobs", async (req, res) => {
   try {
     /* ?all=true used by admin to see inactive jobs too */
