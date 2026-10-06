@@ -1,7 +1,7 @@
 import express from "express";
 import {
   getWorkshops, getWorkshopById, registerWorkshop,
-  createWorkshop, updateWorkshop, deleteWorkshop,
+  createWorkshop, updateWorkshop, deleteWorkshop, backfillSlugs,
 } from "../controllers/workshopController.js";
 import { protect, adminOnly } from "../middleware/authMiddleware.js";
 import Workshop from "../models/Workshop.js";
@@ -26,6 +26,7 @@ router.get("/:id/registrations", protect, adminOnly, async (req, res) => {
 
 // Admin routes
 router.post("/", protect, adminOnly, createWorkshop);
+router.post("/backfill-slugs", protect, adminOnly, backfillSlugs);
 router.put("/:id", protect, adminOnly, updateWorkshop);
 router.delete("/:id", protect, adminOnly, deleteWorkshop);
 

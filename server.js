@@ -28,6 +28,8 @@ import Job from "./models/Job.js";
 import Resource from "./models/Resource.js";
 import ServiceRequest   from "./models/ServiceRequest.js";
 import SalesConsultation from "./models/SalesConsultation.js";
+import { sendBookingConfirmation } from "./utils/mailer.js";
+import { createZoomMeeting, parseBookingDateTime } from "./utils/zoom.js";
 import TalentProfile    from "./models/TalentProfile.js";
 import MembershipPlan   from "./models/MembershipPlan.js";
 import PlatformConfig  from "./models/PlatformConfig.js";
@@ -440,9 +442,40 @@ app.delete("/api/service-requests/:id", protect, adminOnly, async (req, res) => 
 // ── SALES CONSULTATIONS ───────────────────────────────────────
 app.post("/api/consultations", async (req, res) => {
   try {
-    const { name, email } = req.body;
+    const { name, email, phone, preferredDate, preferredTime, topic } = req.body;
     if (!name || !email) return res.status(400).json({ message: "Name and email required" });
-    const c = await SalesConsultation.create(req.body);
+
+    // Auto-create Zoom meeting
+    let meetLink = "";
+    try {
+      const [accountId, clientId, clientSecret] = await Promise.all([
+        getConfig("ZOOM_ACCOUNT_ID"),
+        getConfig("ZOOM_CLIENT_ID"),
+        getConfig("ZOOM_CLIENT_SECRET"),
+      ]);
+      if (accountId && clientId && clientSecret) {
+        const startTime = parseBookingDateTime(preferredDate, preferredTime);
+        const meeting = await createZoomMeeting({
+          topic: `AIFA Counselling Call – ${name}`,
+          startTime,
+          durationMinutes: 30,
+          accountId,
+          clientId,
+          clientSecret,
+        });
+        meetLink = meeting.joinUrl;
+        console.log("[ZOOM] Meeting created:", meetLink);
+      }
+    } catch (zoomErr) {
+      console.error("[ZOOM] Meeting creation failed:", zoomErr.message);
+    }
+
+    const c = await SalesConsultation.create({ ...req.body, meetLink, status: meetLink ? "confirmed" : "pending" });
+    try {
+      await sendBookingConfirmation({ name, email, phone, preferredDate, preferredTime, topic, meetLink });
+    } catch (mailErr) {
+      console.error("[EMAIL] Booking confirmation failed:", mailErr.message);
+    }
     res.status(201).json(c);
   } catch (e) { res.status(400).json({ message: e.message }); }
 });

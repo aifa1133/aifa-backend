@@ -6,7 +6,7 @@ import {
   sendPhoneSignupOtp, verifyPhoneSignupOtp,
   sendEmailOtp, verifyEmailOtp,
   forgotPasswordOtp, verifyResetOtp, resetPasswordOtp,
-  guestCheckout,
+  guestCheckout, setGuestPassword, checkPhoneAvailability,
 } from "../controllers/authController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import Influencer from "../models/Influencer.js";
@@ -15,6 +15,8 @@ import jwt from "jsonwebtoken";
 const router = express.Router();
 
 router.post("/guest-checkout",       guestCheckout);
+router.post("/set-password",         protect, setGuestPassword);
+router.get("/check-phone",           checkPhoneAvailability);
 router.post("/signup",               register);
 router.post("/login",                login);
 router.post("/google",               googleLogin);

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 const workshopSchema = new mongoose.Schema({
   title: { type: String, required: true },
+  slug:  { type: String, default: "" },
   description: { type: String, default: "" },
   image: { type: String, default: "" },
   price: { type: Number, required: true },

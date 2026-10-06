@@ -1,18 +1,25 @@
 import mongoose from "mongoose";
 
 const lessonSchema = new mongoose.Schema({
-  title:    { type: String, required: true },
-  vimeoId:  { type: String, default: "" },
-  videoUrl: { type: String, default: "" },
-  duration: { type: String, default: "" },
-  order:    { type: Number, default: 0 },
-  isFree:   { type: Boolean, default: false },
-  type:     { type: String, default: "Video" },
-  module:   { type: String, default: "" },
+  title:       { type: String, required: true },
+  vimeoId:     { type: String, default: "" },
+  videoUrl:    { type: String, default: "" },
+  thumbnail:   { type: String, default: "" },
+  description: { type: String, default: "" },
+  duration:    { type: String, default: "" },
+  order:       { type: Number, default: 0 },
+  isFree:      { type: Boolean, default: false },
+  type:        { type: String, default: "Video" },
+  module:      { type: String, default: "" },
 });
+
+const makeSlug = (title, id) =>
+  title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") +
+  "-" + String(id).slice(-6);
 
 const courseSchema = new mongoose.Schema({
   title:               { type: String, required: true },
+  slug:                { type: String, unique: true, sparse: true },
   description:         { type: String, default: "" },
   shortDesc:           { type: String, default: "" },
   image:               { type: String, default: "" },
@@ -36,4 +43,11 @@ const courseSchema = new mongoose.Schema({
   scheduledAt:         { type: Date, default: null },
 }, { timestamps: true });
 
+courseSchema.pre("save", async function() {
+  if (!this.slug || this.isModified("title")) {
+    this.slug = makeSlug(this.title, this._id);
+  }
+});
+
+export { makeSlug };
 export default mongoose.model("Course", courseSchema);

@@ -9,6 +9,7 @@ import Commission from "../models/Commission.js";
 import Influencer from "../models/Influencer.js";
 import Certificate from "../models/Certificate.js";
 import CertSettings from "../models/CertSettings.js";
+import { sendWorkshopConfirmation } from "../utils/mailer.js";
 
 function razorpayConfigured() {
   const k = process.env.RAZORPAY_KEY_ID;
@@ -213,6 +214,24 @@ export const verifyPayment = async (req, res) => {
         }
       } catch (commErr) {
         console.error("[COMMISSION] Failed to create commission record:", commErr.message);
+      }
+    }
+
+    // Send workshop confirmation email
+    if (tx.itemType === "workshop") {
+      try {
+        const workshop = await Workshop.findById(tx.itemId);
+        await sendWorkshopConfirmation({
+          to: user.email,
+          name: user.name,
+          workshopTitle: tx.itemTitle,
+          scheduledAt: workshop?.scheduledAt,
+          zoomLink: workshop?.zoomLink || "",
+          orderId: tx.orderId,
+          price: `₹${tx.amount}`,
+        });
+      } catch (mailErr) {
+        console.error("[EMAIL] Workshop confirmation failed:", mailErr.message);
       }
     }
 

@@ -73,12 +73,18 @@ const generateToken = (id) => {
 
 // --- REGISTER ---
 export const register = async (req, res) => {
-  const { name, phone, password, referralCode } = req.body;
+  const { name, password, referralCode } = req.body;
   const email = normalizeEmail(req.body.email);
+  const phone = req.body.phone ? req.body.phone.replace(/\D/g, "").slice(-10) : "";
   try {
     if (password && /\s/.test(password)) return res.status(400).json({ message: 'Password cannot contain spaces.' });
     const userExists = await User.findOne({ email });
     if (userExists) return res.status(400).json({ message: 'User already exists' });
+
+    if (phone) {
+      const phoneExists = await User.findOne({ phone });
+      if (phoneExists) return res.status(400).json({ message: 'This mobile number is already linked to another account. Please log in.' });
+    }
 
     // Resolve referral code → influencer (check couponCode or referral slug)
     let referredBy = null;
@@ -95,12 +101,14 @@ export const register = async (req, res) => {
       if (inf) referredBy = inf._id;
     }
 
-    const user = await User.create({ name, email, phone, password, ...(referredBy && { referredBy }) });
+    // emailVerified: true because user already completed OTP verification before reaching this step
+    const user = await User.create({ name, email, phone, password, emailVerified: true, ...(referredBy && { referredBy }) });
     if (user) {
       res.status(201).json({
         _id: user._id,
         name: user.name,
         role: user.role,
+        emailVerified: true,
         token: generateToken(user._id),
       });
     }
@@ -449,10 +457,19 @@ export const verifyResetOtp = async (req, res) => {
 // Returns a JWT so they can pay immediately without signing up
 export const guestCheckout = async (req, res) => {
   try {
-    const { name, email, phone } = req.body;
+    const { name, email } = req.body;
+    const phone = req.body.phone ? req.body.phone.replace(/\D/g, "").slice(-10) : "";
     if (!name || !email) return res.status(400).json({ message: "Name and email are required" });
 
     let user = await User.findOne({ email });
+
+    if (!user && phone) {
+      const phoneExists = await User.findOne({ phone });
+      if (phoneExists) return res.status(409).json({
+        code: "PHONE_EXISTS",
+        message: "This mobile number is already linked to another account. Please log in.",
+      });
+    }
 
     if (!user) {
       // Create guest user — no password yet
@@ -478,7 +495,14 @@ export const guestCheckout = async (req, res) => {
     } else {
       // Existing guest account — update details and proceed
       if (name) user.name = name;
-      if (phone) user.phone = phone;
+      if (phone && phone !== user.phone) {
+        const phoneExists = await User.findOne({ phone, _id: { $ne: user._id } });
+        if (phoneExists) return res.status(409).json({
+          code: "PHONE_EXISTS",
+          message: "This mobile number is already linked to another account. Please log in.",
+        });
+        user.phone = phone;
+      }
       await user.save();
     }
 
@@ -493,6 +517,44 @@ export const guestCheckout = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: err.message || "Guest checkout failed" });
+  }
+};
+
+// --- CHECK PHONE AVAILABILITY ---
+export const checkPhoneAvailability = async (req, res) => {
+  try {
+    const { phone, excludeEmail } = req.query;
+    if (!phone) return res.json({ available: true });
+    const query = { phone };
+    if (excludeEmail) {
+      const existing = await User.findOne({ email: excludeEmail });
+      if (existing) query._id = { $ne: existing._id };
+    }
+    const exists = await User.findOne(query);
+    res.json({ available: !exists });
+  } catch (err) {
+    res.json({ available: true }); // fail open — don't block UX on error
+  }
+};
+
+// --- SET PASSWORD (guest → full account) ---
+export const setGuestPassword = async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password || password.length < 6)
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.password)
+      return res.status(400).json({ message: "Password already set" });
+
+    user.password = password; // pre-save hook in User model handles hashing
+    await user.save();
+
+    res.json({ message: "Password set successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Failed to set password" });
   }
 };
 
