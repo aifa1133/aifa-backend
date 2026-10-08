@@ -17,6 +17,7 @@ import userRoutes from "./routes/userRoutes.js";
 import influencerRoutes from "./routes/influencerRoutes.js";
 import adminInfluencerRoutes from "./routes/adminInfluencerRoutes.js";
 import promptRoutes from "./routes/promptRoutes.js";
+import messageRoutes from "./routes/messageRoutes.js";
 import User from "./models/User.js";
 import Course from "./models/Course.js";
 import Workshop from "./models/Workshop.js";
@@ -109,6 +110,7 @@ app.use("/api/workshops", workshopRoutes);
 app.use("/api/bootcamps", bootcampRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/prompts", promptRoutes);
+app.use("/api/messages", messageRoutes);
 
 // ── Payment routes ──────────────────────────────────────────
 app.get("/api/payments/validate-coupon", validateCoupon);
