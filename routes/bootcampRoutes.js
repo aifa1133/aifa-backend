@@ -214,9 +214,9 @@ router.delete("/:id/announcements/:aid", protect, adminOnly, async (req, res) =>
 });
 
 // ── Resources ─────────────────────────────────────────────────
-router.get("/:id/resources", protect, adminOnly, async (req, res) => {
+router.get("/:id/resources", protect, async (req, res) => {
   try {
-    const resources = await BootcampResource.find({ bootcamp: req.params.id }).sort({ createdAt: -1 });
+    const resources = await BootcampResource.find({ bootcamp: req.params.id }).sort({ createdAt: 1 });
     res.json(resources);
   } catch { res.status(500).json({ message: "Server error" }); }
 });

@@ -92,18 +92,16 @@ const imageUpload = multer({ storage: cloudinaryStorage, limits: { fileSize: 10 
   else cb(new Error("Only image files allowed"));
 }});
 
-// Multer — generic file upload (PDFs, ZIPs, PPTX, DOCX, MP4)
-const fileStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, "uploads", "files");
-    import("fs").then(({ default: fs }) => { fs.mkdirSync(dir, { recursive: true }); cb(null, dir); });
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `file-${Date.now()}-${Math.random().toString(36).slice(2,7)}${ext}`);
-  },
+// Multer — generic file upload (PDFs, ZIPs, PPTX, DOCX, MP4) via Cloudinary
+const cloudinaryFileStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => ({
+    folder: "aifa/files",
+    resource_type: "raw",
+    public_id: `file-${Date.now()}-${Math.random().toString(36).slice(2,7)}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`,
+  }),
 });
-const fileUpload = multer({ storage: fileStorage, limits: { fileSize: 100 * 1024 * 1024 } });
+const fileUpload = multer({ storage: cloudinaryFileStorage, limits: { fileSize: 100 * 1024 * 1024 } });
 
 app.use("/api/auth", authRoutes);
 app.use("/api/courses", courseRoutes);
@@ -315,9 +313,10 @@ app.get("/api/bootcamps/:id/students", protect, adminOnly, async (req, res) => {
 
 // ── Jobs ─────────────────────────────────────────────────────
 
-/* In-memory cache for external jobs — refreshed every 6 hours */
-let _extJobCache = { data: [], fetchedAt: 0 };
+/* In-memory cache for external jobs — per page, refreshed every 6 hours */
+const _extJobCache = {};
 const EXT_CACHE_TTL = 6 * 60 * 60 * 1000;
+const EXT_PER_PAGE = 20;
 
 async function getPlatformValue(key) {
   try {
@@ -328,20 +327,22 @@ async function getPlatformValue(key) {
 
 app.get("/api/jobs/external", async (req, res) => {
   try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
     const now = Date.now();
-    if (now - _extJobCache.fetchedAt < EXT_CACHE_TTL && _extJobCache.data.length > 0) {
-      return res.json(_extJobCache.data);
+    const cached = _extJobCache[page];
+    if (cached && (now - cached.fetchedAt < EXT_CACHE_TTL)) {
+      return res.json({ jobs: cached.data, total: cached.total, page, perPage: EXT_PER_PAGE });
     }
 
     const appId  = await getPlatformValue("ADZUNA_APP_ID");
     const appKey = await getPlatformValue("ADZUNA_APP_KEY");
-    if (!appId || !appKey) return res.json([]);
+    if (!appId || !appKey) return res.json({ jobs: [], total: 0, page, perPage: EXT_PER_PAGE });
 
     const keywords = "AI film AI video AI animation generative AI creative";
-    const url = `https://api.adzuna.com/v1/api/jobs/in/search/1?app_id=${appId}&app_key=${appKey}&results_per_page=20&what_or=${encodeURIComponent(keywords)}&content-type=application/json`;
+    const url = `https://api.adzuna.com/v1/api/jobs/in/search/${page}?app_id=${appId}&app_key=${appKey}&results_per_page=${EXT_PER_PAGE}&what_or=${encodeURIComponent(keywords)}&content-type=application/json`;
 
     const resp = await fetch(url);
-    if (!resp.ok) return res.json([]);
+    if (!resp.ok) return res.json({ jobs: [], total: 0, page, perPage: EXT_PER_PAGE });
     const data = await resp.json();
 
     const TAG_MAP = { film: "AI Film", video: "AI Film", animat: "AI Editing", edit: "AI Editing", sound: "AI Music", music: "AI Music", story: "AI Story", script: "AI Story", ads: "AI Ads", marketing: "AI Ads" };
@@ -367,11 +368,12 @@ app.get("/api/jobs/external", async (req, res) => {
       source: "Adzuna",
     }));
 
-    _extJobCache = { data: jobs, fetchedAt: now };
-    res.json(jobs);
+    const total = data.count || jobs.length;
+    _extJobCache[page] = { data: jobs, total, fetchedAt: now };
+    res.json({ jobs, total, page, perPage: EXT_PER_PAGE });
   } catch (e) {
     console.error("[external jobs]", e.message);
-    res.json([]);
+    res.json({ jobs: [], total: 0, page: 1, perPage: EXT_PER_PAGE });
   }
 });
 
@@ -460,10 +462,9 @@ app.post("/api/uploads/image", protect, adminOnly, imageUpload.single("image"), 
 app.post("/api/uploads/file", protect, adminOnly, fileUpload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-    res.json({ url: `/api/uploads/files/${req.file.filename}`, name: req.file.originalname });
+    res.json({ url: req.file.path, name: req.file.originalname });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
-app.use("/api/uploads/files", express.static(path.join(__dirname, "uploads", "files")));
 
 // ── Avatar upload ─────────────────────────────────────────────
 app.put("/api/users/me/avatar", protect, avatarUpload.single("avatar"), async (req, res) => {

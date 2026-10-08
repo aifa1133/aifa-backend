@@ -24,6 +24,63 @@ async function sendEmail(to, subject, html) {
   return true;
 }
 
+export const sendVerifyPhoneOtp = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.phone) return res.status(400).json({ message: "No phone number on your account" });
+    if (user.phoneVerified) return res.status(400).json({ message: "Phone is already verified" });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    await Otp.findOneAndUpdate(
+      { key: String(user._id), type: "phone_verify" },
+      { otp, createdAt: new Date() },
+      { upsert: true, new: true }
+    );
+
+    const sid   = (await getConfig("TWILIO_SID"))   || process.env.ACCOUNT_SID   || process.env.TWILIO_ACCOUNT_SID   || "";
+    const token = (await getConfig("TWILIO_TOKEN")) || process.env.AUTH_TOKEN    || process.env.TWILIO_AUTH_TOKEN    || "";
+    const from  = (await getConfig("TWILIO_PHONE")) || process.env.PHONE_NUMBER  || process.env.TWILIO_PHONE_NUMBER  || "";
+
+    if (sid && token && from && !sid.includes("your_")) {
+      const auth = Buffer.from(`${sid}:${token}`).toString("base64");
+      const toPhone = user.phone.startsWith("+") ? user.phone : `+91${user.phone}`;
+      const body = new URLSearchParams({
+        To: toPhone, From: from,
+        Body: `Your AIFA verification OTP is ${otp}. Valid for 10 minutes.`,
+      });
+      const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+        method: "POST",
+        headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      });
+      if (!r.ok) return res.status(500).json({ message: "Failed to send SMS. Check Twilio credentials." });
+    } else {
+      console.log(`[DEV] Phone verify OTP for ${user.phone}: ${otp}`);
+    }
+
+    res.json({ message: "OTP sent to your mobile number" });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
+export const verifyUserPhoneOtp = async (req, res) => {
+  try {
+    const { otp } = req.body;
+    const userId = String(req.user._id);
+    const record = await Otp.findOne({ key: userId, type: "phone_verify" });
+    if (!record) return res.status(400).json({ message: "OTP expired or not requested. Please resend." });
+    if (record.otp !== String(otp).trim()) return res.status(400).json({ message: "Invalid OTP" });
+
+    await Otp.deleteOne({ key: userId, type: "phone_verify" });
+    await User.findByIdAndUpdate(userId, { phoneVerified: true });
+    res.json({ message: "Phone verified successfully" });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
 export const sendVerifyEmailOtp = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);

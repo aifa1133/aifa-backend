@@ -4,6 +4,7 @@ import {
   getAllUsers, updateUserRole, deleteUser,
   updateNotificationPrefs, getStudentStats,
   sendVerifyEmailOtp, verifyUserEmailOtp,
+  sendVerifyPhoneOtp, verifyUserPhoneOtp,
 } from "../controllers/userController.js";
 import { protect, adminOnly } from "../middleware/authMiddleware.js";
 import Transaction from "../models/Transaction.js";
@@ -16,6 +17,8 @@ router.put("/me/password", protect, changePassword);
 router.post("/set-password", protect, setInitialPassword);
 router.post("/send-verify-email-otp", protect, sendVerifyEmailOtp);
 router.post("/verify-email-otp", protect, verifyUserEmailOtp);
+router.post("/send-verify-phone-otp", protect, sendVerifyPhoneOtp);
+router.post("/verify-phone-otp", protect, verifyUserPhoneOtp);
 router.put("/me/notifications", protect, updateNotificationPrefs);
 router.get("/me/stats", protect, getStudentStats);
 

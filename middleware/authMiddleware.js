@@ -6,14 +6,20 @@ export const protect = async (req, res, next) => {
   if (!auth || !auth.startsWith("Bearer ")) {
     return res.status(401).json({ message: "Not authorized, no token" });
   }
+  let decoded;
   try {
     const token = auth.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return res.status(401).json({ message: "Token invalid or expired" });
+  }
+  try {
     req.user = await User.findById(decoded.id).select("-password");
     if (!req.user) return res.status(401).json({ message: "User not found" });
     next();
   } catch {
-    res.status(401).json({ message: "Token invalid or expired" });
+    // DB/internal error — return 503 so the 401 interceptor doesn't log the user out
+    res.status(503).json({ message: "Service temporarily unavailable" });
   }
 };
 
