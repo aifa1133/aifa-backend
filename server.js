@@ -42,6 +42,9 @@ import BootcampAnnouncement from "./models/BootcampAnnouncement.js";
 import Notification from "./models/Notification.js";
 import CommunityThread from "./models/CommunityThread.js";
 import CommunityEvent from "./models/CommunityEvent.js";
+import Club from "./models/Club.js";
+import Challenge from "./models/Challenge.js";
+import ChatChannel from "./models/ChatChannel.js";
 import { protect, adminOnly } from "./middleware/authMiddleware.js";
 import { createOrder, verifyPayment, getMyTransactions, getAllTransactions, validateCoupon } from "./controllers/paymentController.js";
 
@@ -978,6 +981,69 @@ app.delete("/api/community/events/:id", protect, adminOnly, async (req, res) => 
     await CommunityEvent.findByIdAndDelete(req.params.id);
     res.json({ message: "Deleted" });
   } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+// Clubs
+app.get("/api/community/clubs", async (req, res) => {
+  try { res.json(await Club.find().sort({ createdAt: -1 })); }
+  catch { res.status(500).json({ message: "Server error" }); }
+});
+app.post("/api/community/clubs", protect, adminOnly, async (req, res) => {
+  try { res.status(201).json(await Club.create(req.body)); }
+  catch (e) { res.status(400).json({ message: e.message }); }
+});
+app.put("/api/community/clubs/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const c = await Club.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!c) return res.status(404).json({ message: "Not found" });
+    res.json(c);
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+app.delete("/api/community/clubs/:id", protect, adminOnly, async (req, res) => {
+  try { await Club.findByIdAndDelete(req.params.id); res.json({ message: "Deleted" }); }
+  catch { res.status(500).json({ message: "Server error" }); }
+});
+
+// Challenges
+app.get("/api/community/challenges", async (req, res) => {
+  try { res.json(await Challenge.find().sort({ createdAt: -1 })); }
+  catch { res.status(500).json({ message: "Server error" }); }
+});
+app.post("/api/community/challenges", protect, adminOnly, async (req, res) => {
+  try { res.status(201).json(await Challenge.create(req.body)); }
+  catch (e) { res.status(400).json({ message: e.message }); }
+});
+app.put("/api/community/challenges/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const c = await Challenge.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!c) return res.status(404).json({ message: "Not found" });
+    res.json(c);
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+app.delete("/api/community/challenges/:id", protect, adminOnly, async (req, res) => {
+  try { await Challenge.findByIdAndDelete(req.params.id); res.json({ message: "Deleted" }); }
+  catch { res.status(500).json({ message: "Server error" }); }
+});
+
+// Chat Channels
+app.get("/api/community/channels", async (req, res) => {
+  try { res.json(await ChatChannel.find().sort({ createdAt: -1 })); }
+  catch { res.status(500).json({ message: "Server error" }); }
+});
+app.post("/api/community/channels", protect, adminOnly, async (req, res) => {
+  try { res.status(201).json(await ChatChannel.create(req.body)); }
+  catch (e) { res.status(400).json({ message: e.message }); }
+});
+app.put("/api/community/channels/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const c = await ChatChannel.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!c) return res.status(404).json({ message: "Not found" });
+    res.json(c);
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+app.delete("/api/community/channels/:id", protect, adminOnly, async (req, res) => {
+  try { await ChatChannel.findByIdAndDelete(req.params.id); res.json({ message: "Deleted" }); }
+  catch { res.status(500).json({ message: "Server error" }); }
 });
 
 // ── Influencer module ────────────────────────────────────────

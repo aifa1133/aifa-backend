@@ -15,5 +15,6 @@ const schema = new mongoose.Schema({
   link:      { type: String, default: "" },
   openRSVP:  { type: Boolean, default: true },
   featured:  { type: Boolean, default: false },
+  image:     { type: String, default: "" },
 }, { timestamps: true });
 export default mongoose.model("CommunityEvent", schema);
