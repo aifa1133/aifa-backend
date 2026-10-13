@@ -9,6 +9,7 @@ import BootcampSession from "../models/BootcampSession.js";
 import BootcampProject from "../models/BootcampProject.js";
 import BootcampAnnouncement from "../models/BootcampAnnouncement.js";
 import BootcampResource from "../models/BootcampResource.js";
+import ProjectSubmission from "../models/ProjectSubmission.js";
 import User from "../models/User.js";
 
 const router = express.Router();
@@ -173,6 +174,54 @@ router.delete("/:id/projects/:pid", protect, adminOnly, async (req, res) => {
     await BootcampProject.findByIdAndDelete(req.params.pid);
     res.json({ message: "Deleted" });
   } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+// ── Project Submissions ───────────────────────────────────────
+// Student submits
+router.post("/:id/projects/:pid/submissions", protect, enrolledOrAdmin, async (req, res) => {
+  try {
+    const { fileUrl, fileName, link } = req.body;
+    if (!fileUrl && !link) return res.status(400).json({ message: "Provide a file or link" });
+    const existing = await ProjectSubmission.findOne({ bootcamp: req.params.id, project: req.params.pid, user: req.user._id });
+    if (existing) {
+      existing.fileUrl = fileUrl || existing.fileUrl;
+      existing.fileName = fileName || existing.fileName;
+      existing.link = link || existing.link;
+      existing.status = "submitted";
+      await existing.save();
+      return res.json(existing);
+    }
+    const sub = await ProjectSubmission.create({ bootcamp: req.params.id, project: req.params.pid, user: req.user._id, fileUrl: fileUrl || "", fileName: fileName || "", link: link || "" });
+    res.status(201).json(sub);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// Student's own submission
+router.get("/:id/projects/:pid/my-submission", protect, async (req, res) => {
+  try {
+    const sub = await ProjectSubmission.findOne({ bootcamp: req.params.id, project: req.params.pid, user: req.user._id });
+    res.json(sub || null);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// Admin views all submissions for a project
+router.get("/:id/projects/:pid/submissions", protect, adminOnly, async (req, res) => {
+  try {
+    const subs = await ProjectSubmission.find({ bootcamp: req.params.id, project: req.params.pid })
+      .populate("user", "name email createdAt")
+      .sort({ createdAt: -1 });
+    res.json(subs);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// Admin grades a submission
+router.put("/:id/projects/:pid/submissions/:sid", protect, adminOnly, async (req, res) => {
+  try {
+    const { grade, feedback, status } = req.body;
+    const sub = await ProjectSubmission.findByIdAndUpdate(req.params.sid, { grade, feedback, status: status || "graded" }, { new: true }).populate("user", "name email");
+    if (!sub) return res.status(404).json({ message: "Not found" });
+    res.json(sub);
+  } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
 // ── Announcements ─────────────────────────────────────────────

@@ -5,6 +5,8 @@ const bootcampProjectSchema = new mongoose.Schema({
   no:           { type: String, default: "" },
   title:        { type: String, required: true },
   desc:         { type: String, default: "" },
+  deadline:     { type: String, default: "" },
+  maxMarks:     { type: Number, default: 100 },
   requirements: [String],
   resources:    [{ name: String, size: String, fileType: { type: String, default: "PDF" }, fileUrl: { type: String, default: "" } }],
 }, { timestamps: true });
