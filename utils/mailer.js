@@ -243,3 +243,56 @@ export const sendBookingConfirmation = async ({ name, email, phone, preferredDat
     }),
   ]);
 };
+
+export const sendTalentInquiry = async ({ talentName, talentEmail, studentName, studentEmail, message }) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',Arial,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <span style="color:#4f7df3;font-size:24px;font-weight:900;letter-spacing:2px;">AIFA</span>
+      <span style="color:#111827;font-size:24px;font-weight:900;"> Film Academy</span>
+    </div>
+    <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;padding:24px;margin-bottom:16px;">
+      <p style="color:#4f7df3;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin:0 0 8px;">New Hire Inquiry</p>
+      <h2 style="color:#111827;font-size:18px;font-weight:900;margin:0 0 4px;">Hi ${talentName},</h2>
+      <p style="color:#6b7280;font-size:13px;margin:0;">A student is interested in your services on AIFA Film Academy.</p>
+    </div>
+    <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;padding:24px;margin-bottom:16px;">
+      <p style="color:#9ca3af;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin:0 0 16px;">From Student</p>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><td style="color:#6b7280;font-size:13px;padding:8px 0;border-bottom:1px solid #f3f4f6;">Name</td><td style="color:#111827;font-size:13px;font-weight:700;text-align:right;padding:8px 0;border-bottom:1px solid #f3f4f6;">${studentName}</td></tr>
+        <tr><td style="color:#6b7280;font-size:13px;padding:8px 0;">Email</td><td style="text-align:right;padding:8px 0;"><a href="mailto:${studentEmail}" style="color:#4f7df3;font-size:13px;font-weight:700;text-decoration:none;">${studentEmail}</a></td></tr>
+      </table>
+    </div>
+    <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;padding:24px;margin-bottom:16px;">
+      <p style="color:#9ca3af;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin:0 0 12px;">Message</p>
+      <p style="color:#111827;font-size:13px;line-height:1.6;margin:0;">${message}</p>
+    </div>
+    <p style="color:#9ca3af;font-size:12px;text-align:center;margin:0;">Reply directly to <a href="mailto:${studentEmail}" style="color:#4f7df3;">${studentEmail}</a> to respond.</p>
+  </div>
+</body>
+</html>`;
+
+  const t = getTransporter();
+  const sends = [
+    t.sendMail({
+      from: process.env.SMTP_FROM || "AIFA Film Academy <info@aifa.co.in>",
+      to: "info@aifa.co.in",
+      subject: `🎯 New Hire Inquiry for ${talentName} from ${studentName}`,
+      html,
+    }),
+  ];
+  if (talentEmail) {
+    sends.push(t.sendMail({
+      from: process.env.SMTP_FROM || "AIFA Film Academy <info@aifa.co.in>",
+      to: talentEmail,
+      replyTo: studentEmail || undefined,
+      subject: `📩 New Inquiry for You – ${studentName} is interested in your services`,
+      html,
+    }));
+  }
+  await Promise.all(sends);
+};

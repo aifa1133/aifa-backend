@@ -6,6 +6,7 @@ const bootcampAnnouncementSchema = new mongoose.Schema({
   content:   { type: String, default: "" },
   status:    { type: String, enum: ["PUBLISHED", "SCHEDULED", "DRAFT"], default: "DRAFT" },
   createdBy: { type: String, default: "" },
+  imageUrl:  { type: String, default: "" },
 }, { timestamps: true });
 
 export default mongoose.model("BootcampAnnouncement", bootcampAnnouncementSchema);

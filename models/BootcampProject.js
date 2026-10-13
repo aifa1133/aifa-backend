@@ -6,7 +6,7 @@ const bootcampProjectSchema = new mongoose.Schema({
   title:        { type: String, required: true },
   desc:         { type: String, default: "" },
   requirements: [String],
-  resources:    [{ name: String, size: String, fileType: { type: String, default: "PDF" } }],
+  resources:    [{ name: String, size: String, fileType: { type: String, default: "PDF" }, fileUrl: { type: String, default: "" } }],
 }, { timestamps: true });
 
 export default mongoose.model("BootcampProject", bootcampProjectSchema);

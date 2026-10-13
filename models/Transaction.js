@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const transactionSchema = new mongoose.Schema({
   user:       { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  itemType:   { type: String, enum: ["course", "workshop", "bootcamp"], required: true },
+  itemType:   { type: String, enum: ["course", "workshop", "bootcamp", "membership"], required: true },
   itemId:     { type: mongoose.Schema.Types.ObjectId, required: true },
   itemTitle:  { type: String, default: "" },
   amount:     { type: Number, required: true },

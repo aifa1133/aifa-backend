@@ -9,7 +9,15 @@ import Commission from "../models/Commission.js";
 import Influencer from "../models/Influencer.js";
 import Certificate from "../models/Certificate.js";
 import CertSettings from "../models/CertSettings.js";
+import PlatformConfig from "../models/PlatformConfig.js";
 import { sendWorkshopConfirmation } from "../utils/mailer.js";
+
+async function getMembershipPrice() {
+  try {
+    const doc = await PlatformConfig.findOne({ key: "MEMBERSHIP_PRICE" }).lean();
+    return doc?.value ? parseInt(doc.value) : 6999;
+  } catch { return 6999; }
+}
 
 function razorpayConfigured() {
   const k = process.env.RAZORPAY_KEY_ID;
@@ -47,9 +55,45 @@ export const validateCoupon = async (req, res) => {
   }
 };
 
+const MEMBERSHIP_TITLE = "AIFA Pro Membership";
+
 export const createOrder = async (req, res) => {
   const { itemType, itemId, couponCode } = req.body;
   try {
+    /* ── Pro Membership (no DB item lookup) ── */
+    if (itemType === "membership") {
+      const MEMBERSHIP_PRICE = await getMembershipPrice();
+      let finalPrice = MEMBERSHIP_PRICE;
+      let appliedCoupon = null;
+      if (couponCode) {
+        const inf = await Influencer.findOne({ couponCode: String(couponCode).toUpperCase(), status: "active" });
+        if (inf) {
+          const disc = Math.round(MEMBERSHIP_PRICE * inf.couponCommissionRate) / 100;
+          finalPrice = Math.max(0, MEMBERSHIP_PRICE - disc);
+          appliedCoupon = { influencerId: inf._id, couponCode: inf.couponCode, discountRate: inf.couponCommissionRate, discountAmount: disc };
+        }
+      }
+      const amountPaise = Math.round(finalPrice * 100);
+      const razorpay = await getRazorpay();
+      if (!razorpay) {
+        const tx = await Transaction.create({
+          user: req.user._id, itemType, itemId: req.user._id,
+          itemTitle: MEMBERSHIP_TITLE, amount: finalPrice, status: "pending",
+          orderId: `dev_order_${Date.now()}`,
+          ...(appliedCoupon ? { couponCode: appliedCoupon.couponCode, couponInfluencerId: appliedCoupon.influencerId } : {}),
+        });
+        return res.json({ orderId: tx.orderId, amount: amountPaise, currency: "INR", keyId: "razorpay_not_configured", txId: tx._id, appliedCoupon, _devMode: true });
+      }
+      const order = await razorpay.orders.create({ amount: amountPaise, currency: "INR", receipt: `tx_${Date.now()}`, notes: { itemType, userId: req.user._id.toString() } });
+      const tx = await Transaction.create({
+        user: req.user._id, itemType, itemId: req.user._id,
+        itemTitle: MEMBERSHIP_TITLE, amount: finalPrice,
+        orderId: order.id, status: "pending",
+        ...(appliedCoupon ? { couponCode: appliedCoupon.couponCode, couponInfluencerId: appliedCoupon.influencerId } : {}),
+      });
+      return res.json({ orderId: order.id, amount: amountPaise, currency: "INR", keyId: process.env.RAZORPAY_KEY_ID, txId: tx._id, appliedCoupon });
+    }
+
     const Model = MODELS[itemType];
     if (!Model) return res.status(400).json({ message: "Invalid item type" });
 
@@ -149,7 +193,9 @@ export const verifyPayment = async (req, res) => {
 
     // Enroll user in the purchased item
     const user = await User.findById(req.user._id);
-    if (tx.itemType === "course" && !user.enrolledCourses.includes(tx.itemId)) {
+    if (tx.itemType === "membership") {
+      user.isPro = true;
+    } else if (tx.itemType === "course" && !user.enrolledCourses.includes(tx.itemId)) {
       user.enrolledCourses.push(tx.itemId);
     } else if (tx.itemType === "workshop" && !user.enrolledWorkshops.includes(tx.itemId)) {
       user.enrolledWorkshops.push(tx.itemId);
@@ -253,16 +299,16 @@ export const verifyPayment = async (req, res) => {
     // Auto-issue certificate if enabled in settings
     try {
       const settings = await CertSettings.findOne();
-      if (settings?.autoIssue) {
+      if (settings?.autoIssue && tx.itemType !== "workshop") {
         const already = await Certificate.findOne({ user: user._id, courseTitle: tx.itemTitle });
         if (!already) {
-          const titleMap = { course: "Certificate of Completion", workshop: "Workshop Certificate", bootcamp: "Bootcamp Certificate" };
+          const titleMap = { course: "Certificate of Completion", bootcamp: "Bootcamp Certificate" };
           await Certificate.create({
             user:        user._id,
             title:       titleMap[tx.itemType] || "Certificate of Completion",
             courseTitle: tx.itemTitle,
             itemType:    tx.itemType,
-            status:      settings.manualApproval ? "pending" : "active",
+            status:      tx.itemType === "course" ? "active" : "pending",
           });
         }
       }

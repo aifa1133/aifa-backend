@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Course, { makeSlug } from "../models/Course.js";
 import User from "../models/User.js";
+import Certificate from "../models/Certificate.js";
 
 // Accept either a MongoDB ObjectId or a URL slug
 const findCourse = async (param) => {
@@ -35,11 +36,12 @@ export const getCourseById = async (req, res) => {
     const course = await findCourse(req.params.id);
     if (!course) return res.status(404).json({ message: "Course not found" });
 
-    // Everyone can see lesson metadata; only enrolled users/admins see videoUrl
+    // Everyone can see lesson metadata; only enrolled/pro/admin users see videoUrl
     const user = req.user;
-    const isEnrolled = user?.enrolledCourses?.some(
+    const isEnrolledDirectly = user?.enrolledCourses?.some(
       (id) => id.toString() === course._id.toString()
     );
+    const isEnrolled = isEnrolledDirectly || !!user?.isPro;
     const canWatch = isEnrolled || user?.role === "admin";
     const courseObj = course.toObject();
     const lessons = (courseObj.lessons || []).map(l => ({
@@ -53,7 +55,8 @@ export const getCourseById = async (req, res) => {
       module: l.module,
       ...(canWatch ? { videoUrl: l.videoUrl, vimeoId: l.vimeoId } : {}),
     }));
-    res.json({ ...courseObj, lessons, isEnrolled: !!isEnrolled });
+    const prog = user ? (user.courseProgress || []).find(p => p.course?.toString() === course._id.toString()) : null;
+    res.json({ ...courseObj, lessons, isEnrolled: !!isEnrolled, completedLessons: prog?.completedLessons || [] });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
@@ -133,6 +136,15 @@ export const updateProgress = async (req, res) => {
     const total = course.lessons.length || 1;
     prog.percentComplete = Math.round((prog.completedLessons.length / total) * 100);
     await user.save();
+
+    // Auto-issue certificate when course is 100% complete
+    if (prog.percentComplete === 100 && course.generateCertificate !== false) {
+      const exists = await Certificate.findOne({ user: user._id, courseTitle: course.title, itemType: "course" });
+      if (!exists) {
+        await Certificate.create({ user: user._id, title: `${course.title} — Completion Certificate`, courseTitle: course.title, itemType: "course", status: "active" });
+      }
+    }
+
     res.json({ percentComplete: prog.percentComplete, completedLessons: prog.completedLessons });
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -211,8 +223,20 @@ export const getCourseEnrollments = async (req, res) => {
 export const getEnrolledCourses = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
-      .populate("enrolledCourses", "title image duration price level category instructor description")
-      .select("enrolledCourses courseProgress");
+      .populate("enrolledCourses", "title image thumbnail duration price level category instructor description slug")
+      .select("enrolledCourses courseProgress isPro");
+
+    /* Pro members have access to all published courses */
+    if (user?.isPro) {
+      const allCourses = await Course.find({ isPublished: true }).select("title image thumbnail duration price level category instructor description slug");
+      const progressMap = {};
+      (user.courseProgress || []).forEach(p => { progressMap[p.course?.toString()] = p; });
+      return res.json(allCourses.map(c => {
+        const prog = progressMap[c._id.toString()];
+        return { ...c.toObject(), percentComplete: prog?.percentComplete || 0, lastAccessedAt: prog?.lastAccessedAt, completedLessons: prog?.completedLessons || [] };
+      }));
+    }
+
     const courses = (user.enrolledCourses || []).map(c => {
       const prog = user.courseProgress?.find(p => p.course?.toString() === c._id.toString());
       return { ...c.toObject(), percentComplete: prog?.percentComplete || 0, lastAccessedAt: prog?.lastAccessedAt, completedLessons: prog?.completedLessons || [] };

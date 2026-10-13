@@ -6,7 +6,8 @@ const bootcampSessionSchema = new mongoose.Schema({
   name:         { type: String, required: true },
   status:       { type: String, enum: ["COMPLETED", "ACTIVE", "COMING SOON", "CANCELLED"], default: "COMING SOON" },
   recordingUrl: { type: String, default: "" },
-  resources:    [{ name: String, size: String }],
+  resources:    [{ name: String, size: String, fileUrl: { type: String, default: "" } }],
+  thumbnail:    { type: String, default: "" },
   scheduledAt:  { type: Date },
 }, { timestamps: true });
 

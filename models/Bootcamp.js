@@ -23,6 +23,11 @@ const bootcampSchema = new mongoose.Schema({
   nextSessionName: { type: String, default: "" },
   nextSessionAt:   { type: Date },
   batchLabel:      { type: String, default: "" },
+  tagline:         { type: String, default: "" },
+  previewVideoUrl: { type: String, default: "" },
+  autoRecord:      { type: Boolean, default: false },
+  reminders:       { type: Boolean, default: true },
+  chatEnabled:     { type: Boolean, default: true },
   enrolledCount:   { type: Number, default: 0 },
   studentMeta:     [{ userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, status: { type: String, default: "ACTIVE" }, notes: { type: String, default: "" } }],
 }, { timestamps: true });

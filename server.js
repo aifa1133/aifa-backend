@@ -29,10 +29,11 @@ import Job from "./models/Job.js";
 import Resource from "./models/Resource.js";
 import ServiceRequest   from "./models/ServiceRequest.js";
 import SalesConsultation from "./models/SalesConsultation.js";
-import { sendBookingConfirmation } from "./utils/mailer.js";
+import { sendBookingConfirmation, sendTalentInquiry } from "./utils/mailer.js";
 import { createZoomMeeting, parseBookingDateTime } from "./utils/zoom.js";
 import TalentProfile    from "./models/TalentProfile.js";
 import MembershipPlan   from "./models/MembershipPlan.js";
+import Tool             from "./models/Tool.js";
 import PlatformConfig  from "./models/PlatformConfig.js";
 import Coupon from "./models/Coupon.js";
 import BootcampSession from "./models/BootcampSession.js";
@@ -218,7 +219,10 @@ app.post("/api/certificates", protect, adminOnly, async (req, res) => {
   try {
     const { userId, title, courseTitle, itemType } = req.body;
     if (!userId || !title || !courseTitle) return res.status(400).json({ message: "userId, title, courseTitle required" });
-    const cert = await Certificate.create({ user: userId, title, courseTitle, itemType: itemType || "course" });
+    const certItemType = itemType || "course";
+    if (certItemType === "workshop") return res.status(400).json({ message: "Certificates are not issued for workshops." });
+    const certStatus = certItemType === "course" ? "active" : "pending";
+    const cert = await Certificate.create({ user: userId, title, courseTitle, itemType: certItemType, status: certStatus });
     res.status(201).json(cert);
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
@@ -453,7 +457,12 @@ app.delete("/api/resources/:id", protect, adminOnly, async (req, res) => {
 });
 
 // ── Generic image upload → Cloudinary ────────────────────────
-app.post("/api/uploads/image", protect, adminOnly, imageUpload.single("image"), async (req, res) => {
+app.post("/api/uploads/image", protect, adminOnly, (req, res, next) => {
+  imageUpload.single("image")(req, res, (err) => {
+    if (err) return res.status(500).json({ message: err.message || "Upload failed" });
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
     res.json({ url: req.file.path, public_id: req.file.filename });
@@ -461,7 +470,12 @@ app.post("/api/uploads/image", protect, adminOnly, imageUpload.single("image"), 
 });
 
 // ── Generic file upload (PDF, ZIP, DOCX, PPTX, MP4) ──────────
-app.post("/api/uploads/file", protect, adminOnly, fileUpload.single("file"), async (req, res) => {
+app.post("/api/uploads/file", protect, adminOnly, (req, res, next) => {
+  fileUpload.single("file")(req, res, (err) => {
+    if (err) return res.status(500).json({ message: err.message || "Upload failed" });
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
     res.json({ url: req.file.path, name: req.file.originalname });
@@ -481,9 +495,31 @@ app.put("/api/users/me/avatar", protect, avatarUpload.single("avatar"), async (r
 // ── SERVICE REQUESTS ─────────────────────────────────────────
 app.post("/api/service-requests", async (req, res) => {
   try {
-    const { name, email, service } = req.body;
-    if (!name || !email || !service) return res.status(400).json({ message: "Name, email and service required" });
-    const sr = await ServiceRequest.create(req.body);
+    // Support both old field names (name/service) and new (senderName/type)
+    const body = { ...req.body };
+    if (!body.name && body.senderName) body.name = body.senderName;
+    if (!body.email && body.senderEmail) body.email = body.senderEmail;
+    if (!body.service && body.type) body.service = body.type;
+    if (!body.message && body.message === undefined) body.message = "";
+
+    const { name, email, service, talentId, talentName, message, budget } = body;
+    if (!name || !service) return res.status(400).json({ message: "Name and service required" });
+    const sr = await ServiceRequest.create(body);
+
+    if ((service === "hire-talent" || service === "hire_talent") && (talentId || talentName)) {
+      try {
+        const talent = talentId ? await TalentProfile.findById(talentId) : null;
+        sendTalentInquiry({
+          talentName: talent?.name || talentName || "Talent",
+          talentEmail: talent?.contactEmail || null,
+          studentName: name,
+          studentEmail: email || "",
+          message: message || "",
+          budget: budget || "",
+        }).catch(() => {});
+      } catch {}
+    }
+
     res.status(201).json(sr);
   } catch (e) { res.status(400).json({ message: e.message }); }
 });
@@ -562,10 +598,15 @@ app.delete("/api/consultations/:id", protect, adminOnly, async (req, res) => {
 // ── TALENT PROFILES ───────────────────────────────────────────
 app.get("/api/talent", async (req, res) => {
   try {
-    const { category } = req.query;
+    const { category, page = 1, limit = 6 } = req.query;
     const filter = { isActive: true };
     if (category && category !== "All") filter.category = category;
-    res.json(await TalentProfile.find(filter).sort({ createdAt: -1 }));
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [items, total] = await Promise.all([
+      TalentProfile.find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)),
+      TalentProfile.countDocuments(filter),
+    ]);
+    res.json({ items, total, page: parseInt(page), limit: parseInt(limit), hasMore: skip + items.length < total });
   } catch { res.status(500).json({ message: "Server error" }); }
 });
 app.get("/api/talent/all", protect, adminOnly, async (req, res) => {
@@ -611,10 +652,28 @@ app.delete("/api/membership/plans/:id", protect, adminOnly, async (req, res) => 
 app.get("/api/membership/members", protect, adminOnly, async (req, res) => {
   try {
     const users = await User.find({ role: "student" })
-      .select("name email createdAt enrolledCourses enrolledWorkshops enrolledBootcamps")
+      .select("name email createdAt enrolledCourses enrolledWorkshops enrolledBootcamps isPro proExpiry")
       .sort({ createdAt: -1 });
     res.json(users);
   } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+// Admin: activate or deactivate Pro for a user
+app.post("/api/membership/activate/:userId", protect, adminOnly, async (req, res) => {
+  try {
+    const { isPro, durationDays } = req.body;
+    const update = { isPro: !!isPro };
+    if (isPro && durationDays) {
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + Number(durationDays));
+      update.proExpiry = expiry;
+    } else if (!isPro) {
+      update.proExpiry = null;
+    }
+    const user = await User.findByIdAndUpdate(req.params.userId, update, { new: true }).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({ message: isPro ? "Pro activated" : "Pro deactivated", user });
+  } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
 // ── PLATFORM CONFIG ─────────────────────────────────────
@@ -655,6 +714,51 @@ app.put("/api/admin/config/:key", protect, adminOnly, async (req, res) => {
     );
     res.json(c);
   } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+/* ── Tools (homepage "Tools We Will Use") ── */
+app.get("/api/tools", async (req, res) => {
+  try {
+    const tools = await Tool.find({ isActive: true }).sort({ order: 1, createdAt: 1 });
+    res.json(tools);
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+app.post("/api/tools", protect, adminOnly, async (req, res) => {
+  try {
+    const count = await Tool.countDocuments();
+    const tool = await Tool.create({ ...req.body, order: req.body.order ?? count });
+    res.status(201).json(tool);
+  } catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.put("/api/tools/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const tool = await Tool.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    if (!tool) return res.status(404).json({ message: "Not found" });
+    res.json(tool);
+  } catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.delete("/api/tools/:id", protect, adminOnly, async (req, res) => {
+  try {
+    await Tool.findByIdAndDelete(req.params.id);
+    res.json({ message: "Deleted" });
+  } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+// Public endpoint — frontend fetches membership pricing without auth
+app.get("/api/settings/membership-price", async (req, res) => {
+  try {
+    const [priceDoc, origDoc] = await Promise.all([
+      PlatformConfig.findOne({ key: "MEMBERSHIP_PRICE" }).lean(),
+      PlatformConfig.findOne({ key: "MEMBERSHIP_ORIGINAL_PRICE" }).lean(),
+    ]);
+    res.json({
+      price:         parseInt(priceDoc?.value) || 6999,
+      originalPrice: parseInt(origDoc?.value)  || 15000,
+    });
+  } catch { res.status(500).json({ price: 6999, originalPrice: 15000 }); }
 });
 
 app.put("/api/admin/config", protect, adminOnly, async (req, res) => {

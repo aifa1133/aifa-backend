@@ -193,17 +193,33 @@ router.get("/:id/announcements", protect, enrolledOrAdmin, async (req, res) => {
 
 router.post("/:id/announcements", protect, adminOnly, async (req, res) => {
   try {
-    const announcement = await BootcampAnnouncement.create({ bootcamp: req.params.id, ...req.body, createdBy: req.user?.name || "Admin" });
+    const { title, content, status, imageUrl } = req.body;
+    const announcement = await BootcampAnnouncement.create({
+      bootcamp: req.params.id,
+      title, content, status,
+      imageUrl: imageUrl || "",
+      createdBy: req.user?.name || "Admin",
+    });
     res.status(201).json(announcement);
   } catch (e) { res.status(400).json({ message: e.message }); }
 });
 
 router.put("/:id/announcements/:aid", protect, adminOnly, async (req, res) => {
   try {
-    const announcement = await BootcampAnnouncement.findByIdAndUpdate(req.params.aid, req.body, { new: true });
+    const { title, content, status, imageUrl } = req.body;
+    const update = {};
+    if (title     !== undefined) update.title     = title;
+    if (content   !== undefined) update.content   = content;
+    if (status    !== undefined) update.status    = status;
+    if (imageUrl  !== undefined) update.imageUrl  = imageUrl;
+    const announcement = await BootcampAnnouncement.findByIdAndUpdate(
+      req.params.aid,
+      { $set: update },
+      { new: true, runValidators: true }
+    );
     if (!announcement) return res.status(404).json({ message: "Not found" });
     res.json(announcement);
-  } catch { res.status(500).json({ message: "Server error" }); }
+  } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
 router.delete("/:id/announcements/:aid", protect, adminOnly, async (req, res) => {

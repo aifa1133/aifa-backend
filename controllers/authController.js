@@ -101,8 +101,8 @@ export const register = async (req, res) => {
       if (inf) referredBy = inf._id;
     }
 
-    // emailVerified: true because user already completed OTP verification before reaching this step
-    const user = await User.create({ name, email, phone, password, emailVerified: true, ...(referredBy && { referredBy }) });
+    // emailVerified + phoneVerified: true because both OTPs were verified before reaching this step
+    const user = await User.create({ name, email, phone, password, emailVerified: true, phoneVerified: !!phone, ...(referredBy && { referredBy }) });
     if (user) {
       res.status(201).json({
         _id: user._id,

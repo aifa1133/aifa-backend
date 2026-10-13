@@ -74,6 +74,8 @@ const userSchema = new mongoose.Schema({
     instagram: { type: String, default: "" },
     portfolio: { type: String, default: "" },
   },
+  isPro:      { type: Boolean, default: false },
+  proExpiry:  { type: Date, default: null },
 }, { timestamps: true });
 
 // Hash password before saving to DB
