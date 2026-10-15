@@ -485,6 +485,19 @@ app.post("/api/uploads/file", protect, adminOnly, (req, res, next) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
+// ── Student project file upload → Cloudinary (authenticated students only) ──
+app.post("/api/uploads/project-file", protect, (req, res, next) => {
+  fileUpload.single("file")(req, res, (err) => {
+    if (err) return res.status(500).json({ message: err.message || "Upload failed" });
+    next();
+  });
+}, async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    res.json({ url: req.file.path, name: req.file.originalname });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
 // ── Avatar upload ─────────────────────────────────────────────
 app.put("/api/users/me/avatar", protect, avatarUpload.single("avatar"), async (req, res) => {
   try {
