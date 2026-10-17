@@ -6,6 +6,7 @@ const workshopSchema = new mongoose.Schema({
   description: { type: String, default: "" },
   image: { type: String, default: "" },
   price: { type: Number, required: true },
+  originalPrice: { type: Number, default: 0 },
   currency: { type: String, enum: ["INR", "USD"], default: "INR" },
   duration: { type: String, default: "" },
   mode: { type: String, enum: ["ONLINE", "OFFLINE"], default: "ONLINE" },
