@@ -10,6 +10,7 @@ const talentSchema = new mongoose.Schema({
   works:        [String],
   contactEmail: { type: String },
   isActive:     { type: Boolean, default: true },
+  freeAccess:   { type: Boolean, default: false },
 }, { timestamps: true });
 
 export default mongoose.model("TalentProfile", talentSchema);
