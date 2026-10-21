@@ -498,11 +498,16 @@ app.post("/api/uploads/project-file", protect, (req, res, next) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
-// ── Avatar upload ─────────────────────────────────────────────
-app.put("/api/users/me/avatar", protect, avatarUpload.single("avatar"), async (req, res) => {
+// ── Avatar upload (Cloudinary) ────────────────────────────────
+app.put("/api/users/me/avatar", protect, (req, res, next) => {
+  imageUpload.single("avatar")(req, res, (err) => {
+    if (err) return res.status(500).json({ message: err.message || "Upload failed" });
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-    const avatarUrl = `/api/uploads/${req.file.filename}`;
+    const avatarUrl = req.file.path; // Cloudinary CDN URL
     const user = await User.findByIdAndUpdate(req.user._id, { profilePicture: avatarUrl }, { new: true }).select("-password");
     res.json({ avatarUrl, user });
   } catch (e) { res.status(500).json({ message: e.message }); }
