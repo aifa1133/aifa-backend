@@ -115,13 +115,16 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    const amountPaise = Math.max(100, Math.round(finalPrice * 100)); // Razorpay minimum is ₹1 (100 paise)
+    // Add 18% GST (matches frontend PaymentModal display)
+    const gst = Math.round(finalPrice * 0.18);
+    const totalWithGst = finalPrice + gst;
+    const amountPaise = Math.max(100, Math.round(totalWithGst * 100)); // Razorpay minimum is ₹1 (100 paise)
 
     const razorpay = await getRazorpay();
     if (!razorpay) {
       const tx = await Transaction.create({
         user: req.user._id, itemType, itemId,
-        itemTitle: item.title, amount: finalPrice, status: "pending",
+        itemTitle: item.title, amount: totalWithGst, status: "pending",
         orderId: `dev_order_${Date.now()}`,
         ...(appliedCoupon ? { couponCode: appliedCoupon.couponCode, couponInfluencerId: appliedCoupon.influencerId } : {}),
       });
@@ -140,7 +143,7 @@ export const createOrder = async (req, res) => {
 
     const tx = await Transaction.create({
       user: req.user._id, itemType, itemId,
-      itemTitle: item.title, amount: finalPrice,
+      itemTitle: item.title, amount: totalWithGst,
       orderId: order.id, status: "pending",
       ...(appliedCoupon ? { couponCode: appliedCoupon.couponCode, couponInfluencerId: appliedCoupon.influencerId } : {}),
     });
