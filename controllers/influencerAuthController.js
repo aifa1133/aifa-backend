@@ -1,7 +1,8 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import Influencer from "../models/Influencer.js";
-import User from "../models/User.js";
+import Otp from "../models/Otp.js";
+import { sendInfluencerWelcome, sendInfluencerPasswordReset } from "../utils/mailer.js";
 
 const signToken = (id) =>
   jwt.sign({ id, role: "influencer" }, process.env.JWT_SECRET, { expiresIn: "7d" });
@@ -31,10 +32,7 @@ const publicProfile = (inf) => ({
   createdAt: inf.createdAt,
 });
 
-/* POST /api/influencer/auth/login
-   Accepts either:
-   1. Influencer's own password (set by admin)
-   2. Student credentials — if that student is a linked influencer (same email) */
+/* POST /api/influencer/auth/login */
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -43,27 +41,13 @@ export const login = async (req, res) => {
     }
     const normalised = String(email).toLowerCase().trim();
 
-    let influencer = await Influencer.findOne({ email: normalised });
-
-    if (influencer) {
-      // Try influencer's own password first
-      const ok = await influencer.matchPassword(password);
-      if (!ok) {
-        // Fall back: check if it matches the linked student account's password
-        const user = await User.findOne({ email: normalised });
-        const studentOk = user && user.password && await bcrypt.compare(password, user.password);
-        if (!studentOk) return res.status(401).json({ message: "Invalid email or password" });
-      }
-    } else {
-      // No influencer record found — check if this is a student who is a linked influencer
-      const user = await User.findOne({ email: normalised });
-      if (!user) return res.status(401).json({ message: "Invalid email or password" });
-      const studentOk = user.password && await bcrypt.compare(password, user.password);
-      if (!studentOk) return res.status(401).json({ message: "Invalid email or password" });
-      // Find influencer linked to this user
-      influencer = await Influencer.findOne({ userId: user._id });
-      if (!influencer) return res.status(401).json({ message: "No influencer account is linked to this email. Contact AIFA to join." });
+    const influencer = await Influencer.findOne({ email: normalised });
+    if (!influencer) {
+      return res.status(401).json({ message: "No influencer account found for this email. Contact AIFA to join." });
     }
+
+    const ok = await influencer.matchPassword(password);
+    if (!ok) return res.status(401).json({ message: "Invalid email or password" });
 
     if (influencer.status !== "active") {
       return res.status(403).json({ message: "Your influencer account is inactive. Contact AIFA support." });
@@ -81,6 +65,52 @@ export const getMe = async (req, res) => {
     res.json(publicProfile(req.influencer));
   } catch {
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* POST /api/influencer/auth/forgot-password */
+export const forgotPassword = async (req, res) => {
+  try {
+    const email = String(req.body.email || "").toLowerCase().trim();
+    if (!email) return res.status(400).json({ message: "Email is required" });
+
+    const influencer = await Influencer.findOne({ email });
+    // Always return 200 to avoid email enumeration
+    if (!influencer) return res.json({ message: "If that email is registered, you will receive a reset code." });
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    await Otp.deleteMany({ key: email, type: "influencer_reset" });
+    await Otp.create({ key: email, type: "influencer_reset", otp: code });
+
+    await sendInfluencerPasswordReset({ to: email, name: influencer.fullName, code });
+    res.json({ message: "If that email is registered, you will receive a reset code." });
+  } catch (e) {
+    res.status(500).json({ message: e.message || "Server error" });
+  }
+};
+
+/* POST /api/influencer/auth/reset-password */
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, password } = req.body;
+    if (!email || !otp || !password) return res.status(400).json({ message: "Email, OTP and new password are required" });
+    if (String(password).length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
+
+    const normalised = String(email).toLowerCase().trim();
+    const record = await Otp.findOne({ key: normalised, type: "influencer_reset", otp: String(otp) });
+    if (!record) return res.status(400).json({ message: "Invalid or expired reset code. Please request a new one." });
+
+    const influencer = await Influencer.findOne({ email: normalised });
+    if (!influencer) return res.status(404).json({ message: "Account not found" });
+
+    const salt = await bcrypt.genSalt(10);
+    influencer.password = await bcrypt.hash(String(password), salt);
+    await influencer.save({ validateModifiedOnly: true });
+    await Otp.deleteMany({ key: normalised, type: "influencer_reset" });
+
+    res.json({ message: "Password updated successfully. You can now log in." });
+  } catch (e) {
+    res.status(500).json({ message: e.message || "Server error" });
   }
 };
 

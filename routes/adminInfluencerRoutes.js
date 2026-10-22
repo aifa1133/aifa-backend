@@ -15,6 +15,10 @@ import {
   rejectCommission,
   markCommissionPaid,
   updateCommissionNotes,
+  getPayoutStats,
+  listPayouts,
+  completePayout,
+  rejectPayout,
 } from "../controllers/adminInfluencerController.js";
 
 const router = express.Router();
@@ -37,5 +41,11 @@ router.put("/commissions/:id/approve", approveCommission);
 router.put("/commissions/:id/reject", rejectCommission);
 router.put("/commissions/:id/mark-paid", markCommissionPaid);
 router.put("/commissions/:id/notes", updateCommissionNotes);
+
+/* Payouts */
+router.get("/payouts/stats", getPayoutStats);
+router.get("/payouts", listPayouts);
+router.put("/payouts/:id/complete", completePayout);
+router.put("/payouts/:id/reject", rejectPayout);
 
 export default router;

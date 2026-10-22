@@ -4,6 +4,7 @@ import Influencer from "../models/Influencer.js";
 import Commission from "../models/Commission.js";
 import Payout from "../models/Payout.js";
 import User from "../models/User.js";
+import { sendInfluencerWelcome } from "../utils/mailer.js";
 
 const oid = (v) => new mongoose.Types.ObjectId(String(v));
 const rx = (s) => new RegExp(String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
@@ -154,6 +155,18 @@ export const createInfluencer = async (req, res) => {
 
     const out = influencer.toObject();
     delete out.password;
+
+    // Send welcome email with credentials (non-blocking)
+    sendInfluencerWelcome({
+      to: influencer.email,
+      fullName: influencer.fullName,
+      email: influencer.email,
+      password: tempPassword,
+      couponCode: influencer.couponCode,
+      referralLink: influencer.referralLink,
+      loginUrl: `${SITE}/influencer/login`,
+    }).catch(() => {});
+
     res.status(201).json({ ...out, tempPassword });
   } catch (e) {
     res.status(400).json({ message: e.message || "Could not create influencer" });
@@ -480,6 +493,87 @@ export const markCommissionPaid = async (req, res) => {
   } catch (e) {
     res.status(500).json({ message: e.message || "Server error" });
   }
+};
+
+/* ═══════════ PAYOUTS (admin) ═══════════ */
+
+/* GET /api/admin/payouts/stats */
+export const getPayoutStats = async (req, res) => {
+  try {
+    const agg = await Payout.aggregate([
+      { $group: {
+        _id: "$status",
+        count: { $sum: 1 },
+        total: { $sum: "$amount" },
+      }},
+    ]);
+    const map = {};
+    agg.forEach(a => { map[a._id] = { count: a.count, total: a.total }; });
+    res.json({
+      pending: map.pending || { count: 0, total: 0 },
+      completed: map.completed || { count: 0, total: 0 },
+      rejected: map.rejected || { count: 0, total: 0 },
+    });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+/* GET /api/admin/payouts */
+export const listPayouts = async (req, res) => {
+  try {
+    const { status = "", page = 1, limit = 20 } = req.query;
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const l = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const filter = {};
+    if (status) filter.status = status;
+
+    const [items, total] = await Promise.all([
+      Payout.find(filter)
+        .populate("influencerId", "fullName email couponCode profilePhoto")
+        .sort({ createdAt: -1 })
+        .skip((p - 1) * l)
+        .limit(l),
+      Payout.countDocuments(filter),
+    ]);
+    res.json({ items, total, page: p, limit: l, pages: Math.max(1, Math.ceil(total / l)) });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+/* PUT /api/admin/payouts/:id/complete */
+export const completePayout = async (req, res) => {
+  try {
+    const payout = await Payout.findById(req.params.id);
+    if (!payout) return res.status(404).json({ message: "Payout not found" });
+    if (payout.status !== "pending") return res.status(400).json({ message: "Only pending payouts can be completed" });
+
+    payout.status = "completed";
+    payout.processedOn = new Date();
+    await payout.save();
+
+    // Mark all approved+unpaid commissions for this influencer as paid
+    await Commission.updateMany(
+      { influencerId: payout.influencerId, approvalStatus: "approved", paymentStatus: "unpaid" },
+      { paymentStatus: "paid" }
+    );
+
+    await payout.populate("influencerId", "fullName email couponCode");
+    res.json(payout);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
+
+/* PUT /api/admin/payouts/:id/reject */
+export const rejectPayout = async (req, res) => {
+  try {
+    const payout = await Payout.findById(req.params.id);
+    if (!payout) return res.status(404).json({ message: "Payout not found" });
+    if (payout.status !== "pending") return res.status(400).json({ message: "Only pending payouts can be rejected" });
+
+    payout.status = "rejected";
+    payout.processedOn = new Date();
+    await payout.save();
+
+    await payout.populate("influencerId", "fullName email couponCode");
+    res.json(payout);
+  } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
 /* PUT /api/admin/commissions/:id/notes */

@@ -1,5 +1,5 @@
 import express from "express";
-import { login, getMe } from "../controllers/influencerAuthController.js";
+import { login, getMe, forgotPassword, resetPassword } from "../controllers/influencerAuthController.js";
 import {
   getStats,
   getReferrals,
@@ -14,6 +14,8 @@ const router = express.Router();
 /* Auth */
 router.post("/auth/login", login);
 router.get("/auth/me", verifyInfluencer, getMe);
+router.post("/auth/forgot-password", forgotPassword);
+router.post("/auth/reset-password", resetPassword);
 
 /* Portal */
 router.get("/stats", verifyInfluencer, getStats);

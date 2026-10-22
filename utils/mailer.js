@@ -244,6 +244,96 @@ export const sendBookingConfirmation = async ({ name, email, phone, preferredDat
   ]);
 };
 
+export const sendInfluencerWelcome = async ({ to, fullName, email, password, couponCode, referralLink, loginUrl }) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0B0F10;font-family:'Segoe UI',Arial,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <span style="color:#C7E36B;font-size:24px;font-weight:900;letter-spacing:2px;">AIFA</span>
+      <span style="color:#ffffff;font-size:24px;font-weight:900;"> Film Academy</span>
+    </div>
+    <div style="background:#111315;border:1px solid #C7E36B33;border-radius:16px;padding:28px;margin-bottom:20px;text-align:center;">
+      <div style="width:56px;height:56px;background:#C7E36B;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;">
+        <span style="font-size:26px;">🎉</span>
+      </div>
+      <h1 style="color:#ffffff;font-size:22px;font-weight:900;margin:0 0 8px;">Welcome to AIFA Influencer Program!</h1>
+      <p style="color:#9ca3af;font-size:14px;margin:0;">Hi <strong style="color:#fff;">${fullName}</strong>, your influencer account is ready.</p>
+    </div>
+    <div style="background:#111315;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;margin-bottom:20px;">
+      <p style="color:#6b7280;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin:0 0 16px;">Your Login Credentials</p>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="color:#9ca3af;font-size:13px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">Email</td>
+          <td style="color:#ffffff;font-size:13px;font-weight:600;text-align:right;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">${email}</td>
+        </tr>
+        <tr>
+          <td style="color:#9ca3af;font-size:13px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">Password</td>
+          <td style="color:#C7E36B;font-size:13px;font-weight:700;text-align:right;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">${password}</td>
+        </tr>
+        <tr>
+          <td style="color:#9ca3af;font-size:13px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">Coupon Code</td>
+          <td style="color:#C7E36B;font-size:15px;font-weight:900;text-align:right;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);letter-spacing:2px;">${couponCode}</td>
+        </tr>
+        <tr>
+          <td style="color:#9ca3af;font-size:13px;padding:8px 0;">Referral Link</td>
+          <td style="color:#ffffff;font-size:12px;font-weight:600;text-align:right;padding:8px 0;word-break:break-all;">${referralLink}</td>
+        </tr>
+      </table>
+    </div>
+    <div style="text-align:center;margin-bottom:20px;">
+      <a href="${loginUrl || "https://aifa.co.in/influencer/login"}" style="display:inline-block;background:#C7E36B;color:#0B0F10;font-weight:900;font-size:14px;padding:14px 32px;border-radius:10px;text-decoration:none;">LOG IN TO YOUR PORTAL →</a>
+    </div>
+    <div style="background:#111315;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:16px;margin-bottom:20px;">
+      <p style="color:#9ca3af;font-size:12px;margin:0;">⚠️ Please change your password after your first login. Keep your credentials safe.</p>
+    </div>
+    <p style="color:#4b5563;font-size:12px;text-align:center;margin:0;">Questions? Reach us at <a href="mailto:info@aifa.co.in" style="color:#C7E36B;">info@aifa.co.in</a></p>
+  </div>
+</body>
+</html>`;
+
+  await getTransporter().sendMail({
+    from: process.env.SMTP_FROM || "AIFA Film Academy <info@aifa.co.in>",
+    to,
+    subject: "🎉 Welcome to AIFA Influencer Program – Your Login Details",
+    html,
+  });
+};
+
+export const sendInfluencerPasswordReset = async ({ to, name, code }) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0B0F10;font-family:'Segoe UI',Arial,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <span style="color:#C7E36B;font-size:24px;font-weight:900;letter-spacing:2px;">AIFA</span>
+      <span style="color:#ffffff;font-size:24px;font-weight:900;"> Film Academy</span>
+    </div>
+    <div style="background:#111315;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:28px;text-align:center;margin-bottom:20px;">
+      <h1 style="color:#ffffff;font-size:22px;font-weight:900;margin:0 0 8px;">Password Reset</h1>
+      <p style="color:#9ca3af;font-size:14px;margin:0 0 24px;">Hi <strong style="color:#fff;">${name}</strong>, use this code to reset your influencer portal password.</p>
+      <div style="background:#0B0F10;border:2px dashed #C7E36B44;border-radius:12px;padding:20px;">
+        <p style="color:#C7E36B;font-size:36px;font-weight:900;letter-spacing:8px;margin:0;">${code}</p>
+      </div>
+      <p style="color:#6b7280;font-size:12px;margin:16px 0 0;">This code expires in 10 minutes.</p>
+    </div>
+    <p style="color:#4b5563;font-size:12px;text-align:center;margin:0;">If you did not request this, please ignore this email.</p>
+  </div>
+</body>
+</html>`;
+
+  await getTransporter().sendMail({
+    from: process.env.SMTP_FROM || "AIFA Film Academy <info@aifa.co.in>",
+    to,
+    subject: "🔐 Password Reset Code – AIFA Influencer Portal",
+    html,
+  });
+};
+
 export const sendTalentInquiry = async ({ talentName, talentEmail, studentName, studentEmail, message }) => {
   const html = `
 <!DOCTYPE html>
