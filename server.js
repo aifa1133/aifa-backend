@@ -697,6 +697,32 @@ app.post("/api/membership/activate/:userId", protect, adminOnly, async (req, res
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
+// ── ADMIN USER SEARCH & CREATE ──────────────────────────
+app.get("/api/admin/users", protect, adminOnly, async (req, res) => {
+  try {
+    const { search = "", limit = 10 } = req.query;
+    const filter = search
+      ? { $or: [{ name: { $regex: search, $options: "i" } }, { email: { $regex: search, $options: "i" } }] }
+      : {};
+    const users = await User.find(filter).select("-password").limit(Number(limit));
+    res.json(users);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.post("/api/admin/users", protect, adminOnly, async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) return res.status(400).json({ message: "Name, email and password are required" });
+    if (String(password).length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
+    const exists = await User.findOne({ email: String(email).toLowerCase().trim() });
+    if (exists) return res.status(400).json({ message: "An account with this email already exists" });
+    const user = await User.create({ name: String(name).trim(), email: String(email).toLowerCase().trim(), password: String(password) });
+    const out = user.toObject();
+    delete out.password;
+    res.status(201).json({ message: "Student account created", user: out });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
 // ── PLATFORM CONFIG ─────────────────────────────────────
 async function getConfig(key) {
   try {
