@@ -167,7 +167,7 @@ export const createInfluencer = async (req, res) => {
       loginUrl: `${SITE}/influencer/login`,
     }).catch(() => {});
 
-    res.status(201).json({ ...out, tempPassword });
+    res.status(201).json(out);
   } catch (e) {
     res.status(400).json({ message: e.message || "Could not create influencer" });
   }

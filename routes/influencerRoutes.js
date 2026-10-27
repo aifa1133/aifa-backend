@@ -1,5 +1,5 @@
 import express from "express";
-import { login, getMe, forgotPassword, resetPassword } from "../controllers/influencerAuthController.js";
+import { login, getMe, forgotPassword, resetPassword, changePassword } from "../controllers/influencerAuthController.js";
 import {
   getStats,
   getReferrals,
@@ -16,6 +16,7 @@ router.post("/auth/login", login);
 router.get("/auth/me", verifyInfluencer, getMe);
 router.post("/auth/forgot-password", forgotPassword);
 router.post("/auth/reset-password", resetPassword);
+router.post("/auth/change-password", verifyInfluencer, changePassword);
 
 /* Portal */
 router.get("/stats", verifyInfluencer, getStats);

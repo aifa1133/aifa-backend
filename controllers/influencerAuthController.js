@@ -29,6 +29,7 @@ const publicProfile = (inf) => ({
   bankIFSC: inf.bankIFSC,
   upiId: inf.upiId,
   status: inf.status,
+  mustChangePassword: inf.mustChangePassword ?? false,
   createdAt: inf.createdAt,
 });
 
@@ -109,6 +110,31 @@ export const resetPassword = async (req, res) => {
     await Otp.deleteMany({ key: normalised, type: "influencer_reset" });
 
     res.json({ message: "Password updated successfully. You can now log in." });
+  } catch (e) {
+    res.status(500).json({ message: e.message || "Server error" });
+  }
+};
+
+/* POST /api/influencer/auth/change-password  (requires auth) */
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Current and new password are required" });
+    }
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters" });
+    }
+
+    const influencer = await Influencer.findById(req.influencer._id);
+    const ok = await influencer.matchPassword(currentPassword);
+    if (!ok) return res.status(401).json({ message: "Current password is incorrect" });
+
+    influencer.password = String(newPassword);
+    influencer.mustChangePassword = false;
+    await influencer.save();
+
+    res.json({ message: "Password updated successfully", influencer: publicProfile(influencer) });
   } catch (e) {
     res.status(500).json({ message: e.message || "Server error" });
   }
