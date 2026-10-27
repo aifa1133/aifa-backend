@@ -116,7 +116,7 @@ export const createInfluencer = async (req, res) => {
       instagram, youtube, linkedin, otherSocial,
       couponCommissionRate, referralCommissionRate,
       bankAccountHolder, bankName, bankAccountNumber, bankIFSC, upiId,
-      couponCode: providedCode, referralLink: providedLink, status,
+      couponCode: providedCode, referralLink: providedLink, referralSlug: providedSlug, status,
     } = req.body;
 
     if (!fullName || !email) {
@@ -129,7 +129,19 @@ export const createInfluencer = async (req, res) => {
     if (providedCode && (await Influencer.exists({ couponCode }))) {
       return res.status(400).json({ message: "That coupon code is already taken" });
     }
-    const referralLink = providedLink || (await buildReferralLink(fullName));
+
+    let referralLink;
+    if (providedLink) {
+      referralLink = providedLink;
+    } else if (providedSlug) {
+      const slug = String(providedSlug).toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (await Influencer.exists({ referralLink: `${SITE}/?ref=${slug}` })) {
+        return res.status(400).json({ message: "That referral link slug is already taken" });
+      }
+      referralLink = `${SITE}/?ref=${slug}`;
+    } else {
+      referralLink = await buildReferralLink(fullName);
+    }
 
     /* Temporary password — admin shares it with the influencer */
     const tempPassword = password && String(password).length >= 6
