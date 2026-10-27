@@ -34,6 +34,7 @@ import { createZoomMeeting, parseBookingDateTime } from "./utils/zoom.js";
 import TalentProfile    from "./models/TalentProfile.js";
 import MembershipPlan   from "./models/MembershipPlan.js";
 import Tool             from "./models/Tool.js";
+import CreationItem     from "./models/CreationItem.js";
 import PlatformConfig  from "./models/PlatformConfig.js";
 import Coupon from "./models/Coupon.js";
 import BootcampSession from "./models/BootcampSession.js";
@@ -792,6 +793,31 @@ app.delete("/api/tools/:id", protect, adminOnly, async (req, res) => {
     await Tool.findByIdAndDelete(req.params.id);
     res.json({ message: "Deleted" });
   } catch { res.status(500).json({ message: "Server error" }); }
+});
+
+/* ── Creation Items ("What You Will CREATE") ── */
+app.get("/api/creation-items", async (req, res) => {
+  try {
+    const filter = req.query.all === "true" ? {} : { isActive: true };
+    res.json(await CreationItem.find(filter).sort({ order: 1, createdAt: -1 }));
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+app.post("/api/creation-items", protect, adminOnly, async (req, res) => {
+  try { res.status(201).json(await CreationItem.create(req.body)); }
+  catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.put("/api/creation-items/:id", protect, adminOnly, async (req, res) => {
+  try {
+    const item = await CreationItem.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(item);
+  } catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.delete("/api/creation-items/:id", protect, adminOnly, async (req, res) => {
+  try { await CreationItem.findByIdAndDelete(req.params.id); res.json({ message: "Deleted" }); }
+  catch { res.status(500).json({ message: "Server error" }); }
 });
 
 // Public endpoint — frontend fetches membership pricing without auth
