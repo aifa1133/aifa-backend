@@ -291,6 +291,17 @@ export const updateInfluencerStatus = async (req, res) => {
   }
 };
 
+/* DELETE /api/admin/influencers/:id */
+export const deleteInfluencer = async (req, res) => {
+  try {
+    const inf = await Influencer.findByIdAndDelete(req.params.id);
+    if (!inf) return res.status(404).json({ message: "Influencer not found" });
+    res.json({ message: "Influencer deleted successfully" });
+  } catch (e) {
+    res.status(500).json({ message: e.message || "Server error" });
+  }
+};
+
 /* POST /api/admin/influencers/:id/reset-coupon */
 export const resetCoupon = async (req, res) => {
   try {

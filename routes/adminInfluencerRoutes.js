@@ -6,6 +6,7 @@ import {
   getInfluencer,
   updateInfluencer,
   updateInfluencerStatus,
+  deleteInfluencer,
   resetCoupon,
   resetReferralLink,
   listCommissions,
@@ -30,6 +31,7 @@ router.post("/influencers", createInfluencer);
 router.get("/influencers/:id", getInfluencer);
 router.put("/influencers/:id", updateInfluencer);
 router.put("/influencers/:id/status", updateInfluencerStatus);
+router.delete("/influencers/:id", deleteInfluencer);
 router.post("/influencers/:id/reset-coupon", resetCoupon);
 router.post("/influencers/:id/reset-referral-link", resetReferralLink);
 
