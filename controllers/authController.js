@@ -540,7 +540,18 @@ export const checkPhoneAvailability = async (req, res) => {
     const exists = await User.findOne(query);
     res.json({ available: !exists });
   } catch (err) {
-    res.json({ available: true }); // fail open — don't block UX on error
+    res.json({ available: true });
+  }
+};
+
+export const checkEmailAvailability = async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) return res.json({ available: true });
+    const exists = await User.findOne({ email: String(email).toLowerCase().trim() });
+    res.json({ available: !exists });
+  } catch (err) {
+    res.json({ available: true });
   }
 };
 

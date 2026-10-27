@@ -6,7 +6,7 @@ import {
   sendPhoneSignupOtp, verifyPhoneSignupOtp,
   sendEmailOtp, verifyEmailOtp,
   forgotPasswordOtp, verifyResetOtp, resetPasswordOtp,
-  guestCheckout, setGuestPassword, checkPhoneAvailability,
+  guestCheckout, setGuestPassword, checkPhoneAvailability, checkEmailAvailability,
 } from "../controllers/authController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import Influencer from "../models/Influencer.js";
@@ -17,6 +17,7 @@ const router = express.Router();
 router.post("/guest-checkout",       guestCheckout);
 router.post("/set-password",         protect, setGuestPassword);
 router.get("/check-phone",           checkPhoneAvailability);
+router.get("/check-email",           checkEmailAvailability);
 router.post("/signup",               register);
 router.post("/login",                login);
 router.post("/google",               googleLogin);
