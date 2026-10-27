@@ -128,7 +128,7 @@ export const changePassword = async (req, res) => {
 
     const influencer = await Influencer.findById(req.influencer._id);
     const ok = await influencer.matchPassword(currentPassword);
-    if (!ok) return res.status(401).json({ message: "Current password is incorrect" });
+    if (!ok) return res.status(400).json({ message: "Current password is incorrect" });
 
     influencer.password = String(newPassword);
     influencer.mustChangePassword = false;
