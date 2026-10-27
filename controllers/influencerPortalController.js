@@ -58,6 +58,7 @@ export const getStats = async (req, res) => {
       referralCommissionRate: req.influencer.referralCommissionRate,
       couponCode: req.influencer.couponCode,
       referralLink: req.influencer.referralLink,
+      linkClicks: req.influencer.linkClicks || 0,
     });
   } catch (e) {
     res.status(500).json({ message: e.message || "Server error" });

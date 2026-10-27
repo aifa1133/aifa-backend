@@ -578,6 +578,40 @@ export const setGuestPassword = async (req, res) => {
 };
 
 // --- RESET PASSWORD VIA OTP ---
+// --- TRACK REFERRAL LINK CLICK (public) ---
+export const trackReferralClick = async (req, res) => {
+  try {
+    const { ref } = req.body;
+    if (!ref) return res.json({ ok: true });
+    const slug = String(ref).trim().toLowerCase();
+    await Influencer.findOneAndUpdate(
+      { referralLink: { $regex: `ref=${slug}$`, $options: "i" }, status: "active" },
+      { $inc: { linkClicks: 1 } }
+    );
+    res.json({ ok: true });
+  } catch { res.json({ ok: true }); }
+};
+
+// --- LINK REFERRAL TO EXISTING LOGGED-IN USER ---
+export const linkReferral = async (req, res) => {
+  try {
+    const { ref } = req.body;
+    if (!ref) return res.json({ ok: true });
+    const user = await User.findById(req.user._id);
+    if (!user || user.referredBy) return res.json({ ok: true }); // already has referral
+    const slug = String(ref).trim().toLowerCase();
+    const inf = await Influencer.findOne({
+      referralLink: { $regex: `ref=${slug}$`, $options: "i" },
+      status: "active",
+    });
+    if (inf && String(inf.userId) !== String(user._id)) { // no self-referral
+      user.referredBy = inf._id;
+      await user.save();
+    }
+    res.json({ ok: true });
+  } catch { res.json({ ok: true }); }
+};
+
 export const resetPasswordOtp = async (req, res) => {
   const { resetToken, password } = req.body;
   if (!resetToken || !password) return res.status(400).json({ message: 'Token and password required' });

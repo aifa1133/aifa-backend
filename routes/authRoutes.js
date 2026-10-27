@@ -7,6 +7,7 @@ import {
   sendEmailOtp, verifyEmailOtp,
   forgotPasswordOtp, verifyResetOtp, resetPasswordOtp,
   guestCheckout, setGuestPassword, checkPhoneAvailability, checkEmailAvailability,
+  trackReferralClick, linkReferral,
 } from "../controllers/authController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import Influencer from "../models/Influencer.js";
@@ -38,6 +39,10 @@ router.post("/verify-signup-phone-otp",   verifyPhoneSignupOtp);
 // Email OTP (signup verification)
 router.post("/send-email-otp",       sendEmailOtp);
 router.post("/verify-email-otp",     verifyEmailOtp);
+
+// Referral tracking
+router.post("/track-referral-click",  trackReferralClick);
+router.post("/link-referral",         protect, linkReferral);
 
 // Forgot password OTP flow
 router.post("/forgot-password-otp",  forgotPasswordOtp);

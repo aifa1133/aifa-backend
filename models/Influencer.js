@@ -26,6 +26,7 @@ const influencerSchema = new mongoose.Schema(
 
     couponCode: { type: String, unique: true, uppercase: true, trim: true },
     referralLink: { type: String, default: "" },
+    linkClicks: { type: Number, default: 0 },
 
     couponCommissionRate: { type: Number, default: 10 },
     referralCommissionRate: { type: Number, default: 30 },
