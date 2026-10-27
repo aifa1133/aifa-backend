@@ -337,7 +337,8 @@ export const sendPhoneSignupOtp = async (req, res) => {
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
-      return res.status(500).json({ message: err.message || "Failed to send SMS. Check Twilio credentials." });
+      console.error("[Twilio] SMS send failed:", err.message || err);
+      return res.status(500).json({ message: "Failed to send verification SMS. Please try again or contact support." });
     }
   } else {
     console.log(`[DEV] Phone signup OTP for ${phone}: ${otp}`);
