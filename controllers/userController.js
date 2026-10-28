@@ -132,6 +132,13 @@ export const getMyProfile = async (req, res) => {
       .populate("enrolledWorkshops", "title image duration price scheduledAt")
       .populate("enrolledBootcamps", "title image duration price startDate");
 
+    // Auto-expire Pro membership when proExpiry has passed
+    if (user.isPro && user.proExpiry && new Date(user.proExpiry) < new Date()) {
+      user.isPro = false;
+      user.proExpiry = null;
+      await user.save({ validateModifiedOnly: true });
+    }
+
     // Auto-verify: password users and Google users should always be verified
     if (!user.emailVerified && (user.password || user.isGoogleUser)) {
       user.emailVerified = true;

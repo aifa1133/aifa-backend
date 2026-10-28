@@ -65,7 +65,7 @@ router.put("/:id/students/:userId", protect, adminOnly, async (req, res) => {
 
 router.post("/:id/enroll-by-email", protect, adminOnly, async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, durationDays } = req.body;
     if (!email) return res.status(400).json({ message: "Email is required." });
     const user = await User.findOne({ email: email.trim().toLowerCase() });
     if (!user) return res.status(404).json({ message: "No AIFA account found with that email address." });
@@ -79,8 +79,15 @@ router.post("/:id/enroll-by-email", protect, adminOnly, async (req, res) => {
     if (!user.enrolledBootcamps) user.enrolledBootcamps = [];
     if (!user.enrolledBootcamps.map(String).includes(String(bootcamp._id))) {
       user.enrolledBootcamps.push(bootcamp._id);
-      await user.save();
     }
+    // Grant general membership access for the specified duration
+    if (durationDays && Number(durationDays) > 0) {
+      user.isPro = true;
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + Number(durationDays));
+      user.proExpiry = expiry;
+    }
+    await user.save();
     res.json({ message: `${user.name} has been enrolled successfully.` });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
