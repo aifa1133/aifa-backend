@@ -104,8 +104,7 @@ export const resetPassword = async (req, res) => {
     const influencer = await Influencer.findOne({ email: normalised });
     if (!influencer) return res.status(404).json({ message: "Account not found" });
 
-    const salt = await bcrypt.genSalt(10);
-    influencer.password = await bcrypt.hash(String(password), salt);
+    influencer.password = String(password);
     await influencer.save({ validateModifiedOnly: true });
     await Otp.deleteMany({ key: normalised, type: "influencer_reset" });
 
