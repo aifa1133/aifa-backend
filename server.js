@@ -724,6 +724,83 @@ app.post("/api/admin/users", protect, adminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
+// ── ADMIN: ADD MEMBER (unified create + assign membership) ──
+app.post("/api/admin/add-member", protect, adminOnly, async (req, res) => {
+  try {
+    const { name, email, phone, plan, bootcampId, startDate, durationDays, status, sendWelcomeEmail } = req.body;
+    if (!name || !email) return res.status(400).json({ message: "Name and email are required." });
+    if (!plan) return res.status(400).json({ message: "Membership plan is required." });
+    if (!durationDays || Number(durationDays) < 1) return res.status(400).json({ message: "Duration is required." });
+
+    const normEmail = String(email).toLowerCase().trim();
+    let user = await User.findOne({ email: normEmail });
+    let isNewUser = false;
+    let tempPassword = null;
+
+    if (!user) {
+      // Generate a random temp password
+      tempPassword = Math.random().toString(36).slice(-8) + "A1!";
+      user = await User.create({
+        name: String(name).trim(),
+        email: normEmail,
+        phone: phone ? String(phone).trim() : undefined,
+        password: tempPassword,
+        emailVerified: true,
+      });
+      isNewUser = true;
+    }
+
+    // Calculate expiry from startDate + durationDays
+    const base = startDate ? new Date(startDate) : new Date();
+    const expiry = new Date(base);
+    expiry.setDate(expiry.getDate() + Number(durationDays));
+
+    // Grant Pro access
+    const activate = status !== "inactive";
+    await User.findByIdAndUpdate(user._id, {
+      isPro: activate,
+      proExpiry: activate ? expiry : null,
+      ...(phone && !user.phone ? { phone: String(phone).trim() } : {}),
+    });
+
+    // Bootcamp enrollment
+    if (plan === "bootcamp" && bootcampId) {
+      const bootcamp = await Bootcamp.findById(bootcampId);
+      if (!bootcamp) return res.status(404).json({ message: "Bootcamp not found." });
+      if (!bootcamp.enrollments.map(String).includes(String(user._id))) {
+        bootcamp.enrollments.push(user._id);
+        await bootcamp.save();
+      }
+      if (!user.enrolledBootcamps) user.enrolledBootcamps = [];
+      if (!user.enrolledBootcamps.map(String).includes(String(bootcamp._id))) {
+        await User.findByIdAndUpdate(user._id, { $addToSet: { enrolledBootcamps: bootcamp._id } });
+      }
+    }
+
+    // Welcome email
+    if (sendWelcomeEmail && activate) {
+      try {
+        const { sendStudentWelcome } = await import("./utils/mailer.js");
+        await sendStudentWelcome({
+          to: normEmail,
+          name: String(name).trim(),
+          email: normEmail,
+          password: isNewUser ? tempPassword : "(your existing password)",
+          plan,
+          expiryDate: expiry,
+          loginUrl: "https://aifa.co.in",
+        });
+      } catch (mailErr) { console.error("Welcome email failed:", mailErr.message); }
+    }
+
+    res.status(201).json({
+      message: isNewUser
+        ? `Account created and ${plan === "bootcamp" ? "Bootcamp" : "Pro"} membership activated for ${name}.`
+        : `${plan === "bootcamp" ? "Bootcamp" : "Pro"} membership activated for ${user.name}.`,
+    });
+  } catch (e) { res.status(500).json({ message: e.message || "Server error" }); }
+});
+
 // ── PLATFORM CONFIG ─────────────────────────────────────
 async function getConfig(key) {
   try {

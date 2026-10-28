@@ -386,3 +386,45 @@ export const sendTalentInquiry = async ({ talentName, talentEmail, studentName, 
   }
   await Promise.all(sends);
 };
+
+export const sendStudentWelcome = async ({ to, name, email, password, plan, expiryDate, loginUrl }) => {
+  const t = getTransporter();
+  const planLabel = plan === "bootcamp" ? "Bootcamp" : "Pro Membership";
+  const expLabel = expiryDate ? new Date(expiryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" }) : "—";
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{margin:0;padding:0;background:#0B0F10;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+.wrap{max-width:520px;margin:40px auto;background:#111315;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+.top{background:#C7E36B;padding:32px 32px 24px;text-align:center}
+.top h1{margin:0;font-size:22px;font-weight:900;color:#000}
+.top p{margin:6px 0 0;font-size:14px;color:#333}
+.body{padding:28px 32px}
+.body p{color:#ccc;font-size:14px;line-height:1.6;margin:0 0 16px}
+.creds{background:#0B0F10;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:16px 20px;margin:16px 0}
+.creds p{margin:4px 0;color:#aaa;font-size:13px}
+.creds span{color:#fff;font-weight:700}
+.btn{display:block;margin:24px 0 0;background:#C7E36B;color:#000;font-weight:900;font-size:15px;text-align:center;padding:14px;border-radius:10px;text-decoration:none}
+.foot{padding:20px 32px;border-top:1px solid rgba(255,255,255,.06);color:#555;font-size:12px;text-align:center}
+</style></head><body>
+<div class="wrap">
+  <div class="top"><h1>Welcome to AIFA!</h1><p>Your ${planLabel} is now active.</p></div>
+  <div class="body">
+    <p>Hi <strong style="color:#fff">${name}</strong>,</p>
+    <p>Your AIFA account has been created and your <strong style="color:#C7E36B">${planLabel}</strong> is active. Here are your login details:</p>
+    <div class="creds">
+      <p>Email: <span>${email}</span></p>
+      <p>Temporary Password: <span>${password}</span></p>
+      <p>Plan: <span>${planLabel}</span></p>
+      <p>Access Until: <span>${expLabel}</span></p>
+    </div>
+    <p style="color:#aaa;font-size:13px">Please change your password after your first login.</p>
+    <a class="btn" href="${loginUrl || "https://aifa.co.in"}">Login to AIFA →</a>
+  </div>
+  <div class="foot">© ${new Date().getFullYear()} AIFA Film Academy. All rights reserved.</div>
+</div></body></html>`;
+  await t.sendMail({
+    from: process.env.SMTP_FROM || "AIFA Film Academy <info@aifa.co.in>",
+    to,
+    subject: `Welcome to AIFA – Your ${planLabel} is Active`,
+    html,
+  });
+};
